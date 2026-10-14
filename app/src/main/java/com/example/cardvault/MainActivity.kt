@@ -23,8 +23,9 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
-import android.view.View
 import android.view.MotionEvent
+import android.view.HapticFeedbackConstants
+import android.view.View
 import android.view.WindowInsets
 import android.widget.HorizontalScrollView
 import android.widget.FrameLayout
@@ -37,7 +38,12 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 
 class MainActivity : Activity() {
-    companion object { private const val REQUEST_CARD_IMAGE = 7412; private const val REQUEST_CARD_CAMERA = 7413 }
+    companion object {
+        private const val REQUEST_CARD_IMAGE = 7412
+        private const val REQUEST_CARD_CAMERA = 7413
+        private const val CLIP_TOKEN_EXTRA = "com.example.cardvault.extra.CLIP_TOKEN"
+        private const val CLIP_TOKEN_PREFIX = "aura-vault:"
+    }
     private data class CardPrefill(val number: String = "", val expiry: String = "", val cvv: String = "")
     private data class RetainedActivityState(val session: VaultStore.Session?, val importingCard: Boolean)
     private lateinit var root: LinearLayout
@@ -45,26 +51,23 @@ class MainActivity : Activity() {
     private var session: VaultStore.Session? = null
     private var recoveryToShow: String? = null
     private var recoveryContinuation: (() -> Unit)? = null
-    private var copiedText: String? = null
+    private var pendingClipboardClear: Runnable? = null
+    private var searchMode = false
+    private var searchInput: EditText? = null
+    private var searchFeedback: Runnable? = null
     private var cameraCaptureUri: Uri? = null
     private var cardImportInProgress = false
     private val cameraCaptureFile by lazy { File(cacheDir, "card-capture.jpg") }
     private var activeSection = "Overview"
     private var searchQuery = ""
     private val expandedCards = mutableSetOf<String>()
+    private val selectedCopyFields = mutableMapOf<String, MutableSet<String>>()
     private val ink = Color.rgb(239, 242, 250)
     private val muted = Color.rgb(145, 154, 176)
     private val surface = Color.rgb(22, 25, 35)
     private val accent = Color.rgb(117, 148, 255)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val idleLock = Runnable { if (session != null && recoveryToShow == null && !cardImportInProgress) lockNow() }
-    private val clearClipboard = Runnable {
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clipText = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
-        if (clipText == copiedText) clipboard.clearPrimaryClip()
-        copiedText = null
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         (lastNonConfigurationInstance as? RetainedActivityState)?.let {
@@ -78,7 +81,8 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacks(idleLock)
-        mainHandler.removeCallbacks(clearClipboard)
+        // Do not cancel the clipboard timeout here. Android may destroy this Activity
+        // during rotation or while another app is opened to paste the copied value.
         if (!isChangingConfigurations) session?.dek?.fill(0)
         super.onDestroy()
     }
@@ -106,7 +110,7 @@ class MainActivity : Activity() {
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = if (centeredAuth) Gravity.CENTER else Gravity.TOP
-            setPadding(dp(24), dp(28), dp(24), dp(22))
+            setPadding(dp(24), dp(28), dp(24), dp(if (session != null && recoveryToShow == null) 92 else 22))
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 intArrayOf(Color.rgb(9, 13, 24), Color.rgb(10, 10, 17), Color.rgb(19, 13, 28)))
         }
@@ -135,7 +139,7 @@ class MainActivity : Activity() {
                     val dx = event.x - startX
                     val next = (index + if (dx < 0) 1 else -1).coerceIn(0, sections.lastIndex)
                     horizontalPageSwipe = false
-                    if (next != index) { activeSection = sections[next]; render() }
+                    if (next != index) { activeSection = sections[next]; clearSearchState(); render() }
                     return true
                 }
                 return super.onTouchEvent(event)
@@ -149,10 +153,24 @@ class MainActivity : Activity() {
         contentScroll = scroll
         root.setOnApplyWindowInsetsListener { view, insets ->
             val bars = insets.getInsets(WindowInsets.Type.systemBars())
-            view.setPadding(dp(24), dp(24) + bars.top, dp(24), dp(18) + bars.bottom)
+            view.setPadding(dp(24), dp(24) + bars.top, dp(24), dp(if (session != null && recoveryToShow == null) 82 else 18) + bars.bottom)
             insets
         }
-        setContentView(scroll)
+        val screen = FrameLayout(this).apply { addView(scroll, FrameLayout.LayoutParams(-1, -1)) }
+        if (session != null && recoveryToShow == null) {
+            val fab = TextView(this).apply {
+                text = "+"; textSize = 30f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
+                contentDescription = "Add item"; isClickable = true; isFocusable = true
+                background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                    intArrayOf(Color.rgb(106, 133, 239), Color.rgb(143, 93, 215))).apply { shape = GradientDrawable.OVAL }
+                elevation = dp(8).toFloat()
+                setOnClickListener { performHapticFeedback(HapticFeedbackConstants.CONFIRM); chooseItemType() }
+            }
+            screen.addView(fab, FrameLayout.LayoutParams(dp(62), dp(62), Gravity.BOTTOM or Gravity.END).apply {
+                marginEnd = dp(22); bottomMargin = dp(82)
+            })
+        }
+        setContentView(screen)
         root.requestApplyInsets()
         when {
             recoveryToShow != null -> showRecovery()
@@ -199,7 +217,32 @@ class MainActivity : Activity() {
     }
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
-    private fun rounded(color: Int, radius: Int) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat(); setStroke(dp(1), Color.argb(30, 255, 255, 255)) }
+    private fun clearSearchState() {
+        searchFeedback?.let(mainHandler::removeCallbacks)
+        searchFeedback = null
+        searchInput = null
+        searchQuery = ""
+        searchMode = false
+    }
+    private fun rounded(color: Int, radius: Int) = GradientDrawable().apply {
+        setColor(Color.argb(242, Color.red(color), Color.green(color), Color.blue(color)))
+        cornerRadius = dp(radius).toFloat()
+        setStroke(dp(1), Color.argb(42, 255, 255, 255))
+    }
+    private fun auraGradient() = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+        intArrayOf(Color.rgb(91, 129, 239), Color.rgb(162, 91, 210))).apply { cornerRadius = dp(17).toFloat() }
+    private fun styleAuraDialog(dialog: AlertDialog) {
+        dialog.window?.setBackgroundDrawable(rounded(Color.rgb(19, 22, 34), 26))
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
+            setTextColor(Color.WHITE); background = auraGradient(); isAllCaps = false; typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        }
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.apply {
+            setTextColor(Color.rgb(194, 202, 233)); background = rounded(Color.rgb(43, 48, 68), 15); isAllCaps = false
+        }
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.apply {
+            setTextColor(Color.rgb(194, 202, 233)); background = rounded(Color.rgb(43, 48, 68), 15); isAllCaps = false
+        }
+    }
     private fun animateIn(view: View) {
         view.alpha = 0f; view.translationY = dp(9).toFloat()
         view.animate().alpha(1f).translationY(0f).setDuration(280).start()
@@ -215,7 +258,7 @@ class MainActivity : Activity() {
             row.addView(TextView(this).apply {
                 text = name; textSize = 13f; setTextColor(if (selected) Color.WHITE else muted); gravity = Gravity.CENTER
                 background = rounded(if (selected) Color.rgb(48, 66, 125) else surface, 18); setPadding(dp(16), 0, dp(16), 0)
-                setOnClickListener { activeSection = name; render() }
+                setOnClickListener { activeSection = name; clearSearchState(); render() }
             }, LinearLayout.LayoutParams(-2, dp(42)).apply { rightMargin = dp(8) })
         }
         rail.addView(row); root.addView(rail, LinearLayout.LayoutParams(-1, dp(50)))
@@ -243,11 +286,14 @@ class MainActivity : Activity() {
         root.addView(TextView(this).apply {
             text = recoveryToShow
             textSize = 17f
-            setTextColor(Color.rgb(20, 24, 36))
+            setTextColor(ink)
             setTextIsSelectable(true)
             setPadding(14, 18, 14, 18)
-            background = rounded(Color.rgb(229, 233, 244), 18)
+            background = rounded(Color.rgb(28, 34, 52), 18)
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 16 })
+        button("▣  Copy Secret Key", Color.rgb(49, 63, 112)) {
+            recoveryToShow?.let { copySensitive(it) }
+        }
         val saved = CheckBox(this).apply { text = "I saved this recovery key somewhere safe" }
         root.addView(saved)
         button("Continue") {
@@ -257,6 +303,7 @@ class MainActivity : Activity() {
             recoveryContinuation = null
             if (session != null) mainHandler.postDelayed(idleLock, 60_000)
             render()
+            if (session != null) root.post { maybeOfferFirstFingerprintPrompt() }
         }
     }
 
@@ -268,11 +315,26 @@ class MainActivity : Activity() {
         if (biometric != null) primaryButton("◎   Unlock with fingerprint") { unlockBiometric(biometric) }
         else hint("Tip: enable fingerprint unlock from inside your vault for quicker access.")
         val password = field("Master password", true)
-        button("Unlock with password") {
-            runCatching { VaultStore.unlockWithPassword(this, password.text.toString().toCharArray()) }
-                .onSuccess { session = it; mainHandler.postDelayed(idleLock, 60_000); render() }
+        val unlock = Button(this).apply {
+            text = "Unlock with password"; setTextColor(Color.WHITE); background = rounded(Color.rgb(49, 55, 77), 17)
+            isAllCaps = false; textSize = 15f; typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL); isEnabled = false
+            setOnClickListener {
+            runCatching { VaultStore.unlockWithPassword(this@MainActivity, password.text.toString().toCharArray()) }
+                .onSuccess { session = it; password.performHapticFeedback(HapticFeedbackConstants.CONFIRM); mainHandler.postDelayed(idleLock, 60_000); render(); root.post { maybeOfferFirstFingerprintPrompt() } }
                 .onFailure { message("Could not unlock. Check the password or use your recovery key.") }
+            }
         }
+        root.addView(unlock, LinearLayout.LayoutParams(-1, dp(54)).apply { bottomMargin = dp(10) })
+        password.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val ready = !s.isNullOrEmpty()
+                unlock.isEnabled = ready
+                unlock.background = if (ready) auraGradient() else rounded(Color.rgb(49, 55, 77), 17)
+                unlock.alpha = if (ready) 1f else .72f
+            }
+            override fun afterTextChanged(s: android.text.Editable?) = Unit
+        })
         button("Forgot master password? Use recovery key") { showRecoveryUnlock() }
     }
 
@@ -311,77 +373,253 @@ class MainActivity : Activity() {
             contentDescription = "Settings"; setOnClickListener { showSettingsMenu() }
         }, LinearLayout.LayoutParams(dp(48), dp(44)))
         root.addView(brandBar)
-        title(if (activeSection == "Overview") "Your space, secured." else activeSection)
-        root.addView(label("Private by design  ·  Stored on this device", 13f, muted))
         val entries = session!!.entries
-        val countPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; background = rounded(Color.rgb(18, 22, 34), 24); setPadding(dp(20), dp(18), dp(20), dp(18)) }
-        countPanel.addView(label("YOUR VAULT", 11f, muted, true))
-        countPanel.addView(label("${entries.size} saved ${if (entries.size == 1) "item" else "items"}", 24f, ink, true).apply { setPadding(0, dp(6), 0, dp(3)) })
-        countPanel.addView(label("Encrypted locally · Auto-lock enabled", 12f, muted))
-        root.addView(countPanel, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18); bottomMargin = dp(18) })
+        if (activeSection == "Overview" && !searchMode) {
+            root.addView(label("Your Collections", 20f, ink, true).apply { setPadding(0, dp(24), 0, dp(12)) })
+            listOf("Cards" to "Card", "Bank logins" to "Bank", "Passwords" to "Password", "Custom entries" to "Custom").forEach { (name, kind) ->
+                val count = entries.count { it.kind == kind }
+                val tile = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                    background = rounded(Color.rgb(22, 26, 39), 22); setPadding(dp(18), dp(18), dp(16), dp(18))
+                    elevation = dp(3).toFloat()
+                    isClickable = true; isFocusable = true
+                    setOnClickListener { activeSection = if (kind == "Bank") "Bank logins" else if (kind == "Password") "Passwords" else if (kind == "Custom") "Custom" else "Cards"; clearSearchState(); render() }
+                }
+                tile.addView(label(kindGlyph(kind), 21f, accent, true), LinearLayout.LayoutParams(dp(42), -2))
+                tile.addView(label(name, 17f, ink, true), LinearLayout.LayoutParams(0, -2, 1f))
+                tile.addView(label(count.toString(), 15f, muted, true).apply { gravity = Gravity.CENTER; background = rounded(Color.rgb(37, 43, 63), 14); setPadding(dp(12), dp(7), dp(12), dp(7)) })
+                root.addView(tile, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+                animateIn(tile)
+            }
+            return
+        }
+
+        title(if (searchMode) "Search" else activeSection)
         sectionNav()
         val addRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         addRow.addView(Button(this).apply { text = "+ Add"; isAllCaps = false; setTextColor(Color.WHITE); background = rounded(Color.rgb(73, 99, 194), 16); setOnClickListener { chooseItemType() } }, LinearLayout.LayoutParams(0, dp(50), 1f).apply { rightMargin = dp(6) })
         addRow.addView(Button(this).apply { text = "⌕ Search"; isAllCaps = false; setTextColor(ink); background = rounded(surface, 16); setOnClickListener { searchEntries() } }, LinearLayout.LayoutParams(0, dp(50), 1f).apply { rightMargin = dp(6) })
         addRow.addView(Button(this).apply { text = "✣ Quick"; isAllCaps = false; setTextColor(ink); background = rounded(surface, 16); setOnClickListener { showCommandPalette() } }, LinearLayout.LayoutParams(0, dp(50), 1f))
         root.addView(addRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12); bottomMargin = dp(10) })
-        if (activeSection == "Overview") {
-            root.addView(label("Your collections", 18f, ink, true).apply { setPadding(0, dp(14), 0, dp(10)) })
-            listOf("Cards" to "Payment cards, ready when you need them", "Bank logins" to "Account numbers and net banking access", "Passwords" to "Sign-ins and secure credentials", "Custom" to "Your own private records").forEach { (name, desc) ->
-                val tile = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; background = rounded(surface, 20); setPadding(dp(16), dp(14), dp(16), dp(14)); isClickable = true; setOnClickListener { activeSection = name; render() } }
-                animateIn(tile)
-                tile.addView(label(name, 16f, ink, true)); tile.addView(label(desc, 12f, muted).apply { setPadding(0, dp(4), 0, 0) })
-                root.addView(tile, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+
+        searchInput = null
+        if (searchMode) {
+            val input = EditText(this).apply {
+                hint = "Search names, banks, websites"; setSingleLine(true); setTextColor(ink); setHintTextColor(muted)
+                background = rounded(Color.rgb(32, 37, 53), 18); setPadding(dp(16), dp(8), dp(16), dp(8)); setText(searchQuery)
+            }
+            root.addView(input, LinearLayout.LayoutParams(-1, dp(54)).apply { bottomMargin = dp(8) })
+            searchInput = input
+        }
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(list, LinearLayout.LayoutParams(-1, -2))
+        refreshEntryList(list, entries)
+        searchInput?.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                searchQuery = s?.toString().orEmpty()
+                refreshEntryList(list, entries)
+                searchFeedback?.let(mainHandler::removeCallbacks)
+                searchFeedback = null
+                if (searchQuery.isNotBlank()) {
+                    val query = searchQuery
+                    searchFeedback = Runnable {
+                        if (searchQuery == query && matchingEntries(entries, query).isEmpty()) {
+                            message("No results found", Toast.LENGTH_SHORT)
+                            val clearSearch = Runnable { if (searchQuery == query) searchInput?.setText("") }
+                            searchFeedback = clearSearch
+                            mainHandler.postDelayed(clearSearch, 2_000)
+                        }
+                    }
+                    mainHandler.postDelayed(searchFeedback!!, 400)
+                }
+            }
+            override fun afterTextChanged(s: android.text.Editable?) = Unit
+        })
+    }
+
+    private fun matchingEntries(entries: List<VaultStore.Entry>, query: String = searchQuery): List<VaultStore.Entry> {
+        val kind = when (activeSection) { "Cards" -> "Card"; "Bank logins" -> "Bank"; "Passwords" -> "Password"; "Custom" -> "Custom"; else -> null }
+        return entries.filter { entry ->
+            (kind == null || entry.kind == kind) && (query.isBlank() || entry.title.contains(query, true) || entry.username.contains(query, true) || entry.customFields.any { (key, value) -> key.contains(query, true) || value.contains(query, true) })
+        }
+    }
+
+    private fun refreshEntryList(host: LinearLayout, entries: MutableList<VaultStore.Entry>) {
+        host.removeAllViews()
+        val matches = matchingEntries(entries)
+        if (matches.isEmpty()) {
+            val emptyTitle = if (searchQuery.isNotBlank()) "No matching items" else if (activeSection == "Overview") "Your vault is ready" else "No ${activeSection.lowercase()} yet"
+            host.addView(label(emptyTitle, 19f, ink, true).apply { setPadding(0, dp(26), 0, dp(6)) })
+            host.addView(label(if (searchQuery.isNotBlank()) "Try another name or clear your search." else "Add your first item to this collection.", 13f, muted).apply { setPadding(0, 0, 0, dp(14)) })
+            if (searchQuery.isBlank()) host.addView(Button(this).apply {
+                text = "＋  Add item"; isAllCaps = false; setTextColor(Color.WHITE); background = rounded(Color.rgb(73, 99, 194), 16)
+                setOnClickListener { chooseItemType() }
+            }, LinearLayout.LayoutParams(-1, dp(52)))
+            return
+        }
+        matches.forEach { entry -> renderEntryCard(entry, entries, host) }
+    }
+
+    private fun renderEntryCard(entry: VaultStore.Entry, entries: MutableList<VaultStore.Entry>, host: LinearLayout) {
+        val cardExpanded = expandedCards.contains(entry.id)
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; background = rounded(Color.rgb(19, 23, 34), 22)
+            setPadding(dp(18), dp(16), dp(14), dp(14))
+            elevation = dp(5).toFloat()
+            isClickable = true; isFocusable = true
+        }
+        card.setOnClickListener { if (cardExpanded) expandedCards.remove(entry.id) else expandedCards.add(entry.id); render() }
+        val heading = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        heading.addView(label("${kindGlyph(entry.kind)}   ${entry.kind.uppercase()}", 10f, accent, true), LinearLayout.LayoutParams(0, -2, 1f))
+        card.addView(heading)
+        val titleView = label(entry.title, 19f, ink, true).apply { setPadding(0, dp(8), 0, dp(7)) }
+        highlightMatch(titleView, searchQuery)
+        card.addView(titleView)
+        when (entry.kind) {
+            "Password" -> {
+                if (entry.username.isNotBlank()) {
+                    val username = label(entry.username, 13f, muted)
+                    highlightMatch(username, searchQuery)
+                    card.addView(username)
+                }
+                card.addView(label("••••••••••••", 14f, muted).apply { setPadding(0, dp(7), 0, 0) })
+                card.addView(label(if (cardExpanded) "Hide details" else "Tap to view details", 11f, accent).apply {
+                    setPadding(0, dp(8), 0, 0); setOnClickListener { if (cardExpanded) expandedCards.remove(entry.id) else expandedCards.add(entry.id); render() }
+                })
+                if (cardExpanded) {
+                    copyableFields(entry).forEach { (id, name, value) -> addCopyableField(card, entry, id, name, value) }
+                    addCopySelectedControl(card, entry)
+                    addEntryActionRows(card, entry, entries)
+                }
+            }
+            "Card" -> {
+                card.addView(label("••••  ${entry.cardNumber.takeLast(4)}     ${entry.expiry}", 13f, muted))
+                val expand = label(if (cardExpanded) "Hide card details" else "Tap to view details", 11f, accent).apply { setPadding(0, dp(8), 0, 0); isClickable = true }
+                expand.setOnClickListener { if (cardExpanded) expandedCards.remove(entry.id) else expandedCards.add(entry.id); render() }
+                card.addView(expand)
+                if (cardExpanded) {
+                    copyableFields(entry).forEach { (id, name, value) -> addCopyableField(card, entry, id, name, value) }
+                    addCopySelectedControl(card, entry)
+                    addEntryActionRows(card, entry, entries)
+                }
+            }
+            else -> if (!cardExpanded) entry.customFields.entries.take(3).forEach { (key, value) ->
+                val isSecret = key.contains("password", true) || key.contains("pin", true) || key.contains("secret", true) || key.contains("cvv", true)
+                val line = label("$key   ${if (isSecret) "••••••••" else value}", 12f, muted).apply { setPadding(0, dp(4), 0, 0) }
+                highlightMatch(line, searchQuery)
+                card.addView(line)
             }
         }
-        val shown = entries.toList().filter { activeSection == "Overview" || it.kind == activeSection.removeSuffix("s").let { s -> if (s == "Bank login") "Bank" else if (s == "Password") "Password" else if (s == "Card") "Card" else "Custom" } }
-            .filter { searchQuery.isBlank() || it.title.contains(searchQuery, true) || it.username.contains(searchQuery, true) }
-        if (shown.isEmpty() && activeSection != "Overview") hint("Nothing here yet. Add your first ${activeSection.lowercase().removeSuffix("s")} to get started.")
-        shown.forEach { entry ->
-            val cardExpanded = entry.kind == "Card" && expandedCards.contains(entry.id)
-            val card = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL; background = rounded(Color.rgb(19, 23, 34), 22)
-                setPadding(dp(18), dp(16), dp(18), dp(14))
-                if (entry.kind == "Card") {
-                    isClickable = true
-                    setOnClickListener { if (cardExpanded) expandedCards.remove(entry.id) else expandedCards.add(entry.id); render() }
+        if (entry.kind == "Bank" || entry.kind == "Custom") {
+            card.addView(label(if (cardExpanded) "Hide details" else "Tap to view details", 11f, accent).apply {
+                setPadding(0, dp(8), 0, 0); setOnClickListener { if (cardExpanded) expandedCards.remove(entry.id) else expandedCards.add(entry.id); render() }
+            })
+            if (cardExpanded) {
+                copyableFields(entry).forEach { (id, name, value) -> addCopyableField(card, entry, id, name, value) }
+                addCopySelectedControl(card, entry)
+                addEntryActionRows(card, entry, entries)
+            }
+        }
+        host.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(4) })
+        animateIn(card)
+    }
+
+    private fun addEntryActionRows(card: LinearLayout, entry: VaultStore.Entry, entries: MutableList<VaultStore.Entry>) {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(14), 0, 0) }
+        val buttons: List<Pair<String, () -> Unit>> = listOf(
+            "Share" to { shareEntry(entry) },
+            "Edit" to { editEntry(entry) },
+            "Delete" to { deleteEntry(entry, entries) }
+        )
+        val colors = listOf(Color.rgb(51, 109, 153), Color.rgb(104, 82, 157), Color.rgb(166, 58, 69))
+        buttons.forEachIndexed { index, (title, action) ->
+            row.addView(Button(this).apply {
+                text = title; isAllCaps = false; textSize = 11f; setTextColor(Color.WHITE); background = rounded(colors[index], 14)
+                minHeight = dp(42); setPadding(dp(6), 0, dp(6), 0); setOnClickListener { action() }
+            }, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(5) })
+        }
+        card.addView(row)
+    }
+
+    private fun copyableFields(entry: VaultStore.Entry): List<Triple<String, String, String>> = buildList {
+        add(Triple("name", "Name", entry.title))
+        if (entry.kind == "Card") {
+            if (entry.cardholderName.isNotBlank()) add(Triple("cardholder", "Cardholder", entry.cardholderName))
+            if (entry.cardNumber.isNotBlank()) add(Triple("cardNumber", "Card number", entry.cardNumber))
+            if (entry.expiry.isNotBlank()) add(Triple("expiry", "Expiry", entry.expiry))
+            if (entry.cvv.isNotBlank()) add(Triple("cvv", "CVV", entry.cvv))
+        }
+        if (entry.username.isNotBlank()) add(Triple("username", "Username", entry.username))
+        if (entry.secret.isNotBlank()) add(Triple("password", "Password", entry.secret))
+        entry.customFields.forEach { (key, value) -> if (value.isNotBlank()) add(Triple("custom:$key", key, value)) }
+        if (entry.notes.isNotBlank()) add(Triple("notes", "Notes", entry.notes))
+    }
+
+    private fun addCopyableField(container: LinearLayout, entry: VaultStore.Entry, fieldId: String, title: String, value: String) {
+        val selected = selectedCopyFields.getOrPut(entry.id) { mutableSetOf() }
+        val secret = title.contains("password", true) || title.contains("pin", true) || title.equals("CVV", true) || title.contains("secret", true)
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(5), 0, dp(5))
+            isClickable = true; isFocusable = true; setOnClickListener { }
+        }
+        val checkbox = CheckBox(this).apply {
+            buttonTintList = android.content.res.ColorStateList.valueOf(accent)
+            isChecked = fieldId in selected
+            setOnCheckedChangeListener { _, checked -> if (checked) selected.add(fieldId) else selected.remove(fieldId) }
+        }
+        row.addView(checkbox, LinearLayout.LayoutParams(dp(42), dp(42)))
+        val valueText = label("$title  ${if (secret) "••••••••" else value}", 13f, muted)
+        row.addView(valueText, LinearLayout.LayoutParams(0, -2, 1f))
+        if (secret) {
+            val eye = TextView(this).apply {
+                text = "◉"; textSize = 17f; gravity = Gravity.CENTER; setTextColor(accent); contentDescription = "Press and hold to reveal $title"
+                background = rounded(Color.rgb(37, 44, 62), 11); isClickable = true; isFocusable = true; setOnClickListener { }
+            }
+            eye.setOnTouchListener { view, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> { valueText.text = "$title  $value"; true }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { valueText.text = "$title  ••••••••"; view.performClick(); true }
+                    else -> true
                 }
             }
-            card.addView(label("${kindGlyph(entry.kind)}   ${entry.kind.uppercase()}", 10f, accent, true))
-            card.addView(label(entry.title, 19f, ink, true).apply { setPadding(0, dp(8), 0, dp(7)) })
-            when (entry.kind) {
-                "Password" -> { if (entry.username.isNotBlank()) card.addView(label(entry.username, 13f, muted)); card.addView(label("••••••••••••", 14f, muted).apply { setPadding(0, dp(7), 0, 0) }) }
-                "Card" -> {
-                    card.addView(label("••••  ${entry.cardNumber.takeLast(4)}     ${entry.expiry}", 13f, muted))
-                    card.addView(label(if (cardExpanded) "Tap to hide details" else "Tap to view details", 11f, accent).apply { setPadding(0, dp(8), 0, 0) })
-                    if (cardExpanded) {
-                        card.addView(label("Card number", 11f, muted).apply { setPadding(0, dp(14), 0, dp(2)) })
-                        card.addView(label(entry.cardNumber, 15f, ink, true))
-                        if (entry.cardholderName.isNotBlank()) card.addView(label("Cardholder  ${entry.cardholderName}", 13f, muted).apply { setPadding(0, dp(8), 0, 0) })
-                        card.addView(label("Expiry  ${entry.expiry.ifBlank { "Not added" }}", 13f, muted).apply { setPadding(0, dp(4), 0, 0) })
-                    }
+            row.addView(eye, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(4) })
+        }
+        val copy = TextView(this).apply {
+            text = "⧉"; textSize = 19f; gravity = Gravity.CENTER; setTextColor(Color.WHITE); contentDescription = "Copy $title"
+            background = rounded(Color.rgb(39, 129, 101), 11); isClickable = true; isFocusable = true
+            setOnClickListener { copySensitive(value) }
+        }
+        row.addView(copy, LinearLayout.LayoutParams(dp(40), dp(38)))
+        container.addView(row)
+    }
+
+    private fun addCopySelectedControl(container: LinearLayout, entry: VaultStore.Entry) {
+        val selection = selectedCopyFields.getOrPut(entry.id) { mutableSetOf() }
+        val control = TextView(this).apply {
+            text = "⧉  Copy checked fields"; textSize = 12f; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
+            background = rounded(Color.rgb(39, 129, 101), 13); isClickable = true; isFocusable = true
+            setPadding(dp(12), 0, dp(12), 0); contentDescription = "Copy selected fields"
+            setOnClickListener {
+                val chosen = copyableFields(entry).filter { it.first in selection }
+                if (chosen.isEmpty()) message("Select the fields you want to copy first.")
+                else {
+                    selectedCopyFields.remove(entry.id)
+                    copySensitive(chosen.joinToString("\n") { "${it.second}: ${it.third}" })
+                    render()
                 }
-                else -> entry.customFields.entries.take(3).forEach { (key, value) -> card.addView(label("$key   ${if (key.lowercase().contains("password") || key.lowercase().contains("pin")) "••••••••" else value}", 12f, muted).apply { setPadding(0, dp(4), 0, 0) }) }
             }
-            root.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(4) })
-            animateIn(card)
-            if (entry.kind == "Password") button("Copy password", Color.rgb(28, 75, 82)) { copySensitive(entry.secret) }
-            if (entry.kind == "Card") {
-                if (cardExpanded) button("Copy card number", Color.rgb(28, 75, 82)) { copySensitive(entry.cardNumber) }
-                if (cardExpanded && entry.expiry.isNotBlank()) button("Copy expiry date", Color.rgb(47, 65, 103)) { copySensitive(entry.expiry) }
-                if (cardExpanded && entry.cvv.isNotBlank()) button("Copy CVV · confirm each time", Color.rgb(84, 53, 88)) {
-                    AlertDialog.Builder(this).setTitle("Copy CVV?").setMessage("The CVV will be placed on the clipboard for up to 30 seconds.")
-                        .setNegativeButton("Cancel", null).setPositiveButton("Copy") { _, _ -> copySensitive(entry.cvv) }.show()
-                }
-            }
-            if (entry.kind == "Bank" || entry.kind == "Custom") entry.customFields.forEach { (key, value) ->
-                button("Copy $key", Color.rgb(28, 75, 82)) { if (key.lowercase().contains("cvv") || key.lowercase().contains("mpin") || key.lowercase().contains("password") || key.lowercase().contains("pin")) confirmCopy(key, value) else copySensitive(value) }
-            }
-            button("Share selected details…") { shareEntry(entry) }
-            button("Delete item", Color.rgb(91, 38, 48)) {
-                AlertDialog.Builder(this).setTitle("Delete ${entry.title}?").setMessage("This permanently removes it from the vault.")
-                    .setNegativeButton("Cancel", null).setPositiveButton("Delete") { _, _ -> entries.removeAll { it.id == entry.id }; persistAndRender() }.show()
-            }
+        }
+        container.addView(control, LinearLayout.LayoutParams(-2, dp(42)).apply { topMargin = dp(10) })
+    }
+
+    private fun highlightMatch(view: TextView, query: String) {
+        if (query.isBlank()) return
+        val text = view.text.toString()
+        val index = text.indexOf(query, ignoreCase = true)
+        if (index >= 0) view.text = android.text.SpannableString(text).apply {
+            setSpan(android.text.style.BackgroundColorSpan(Color.rgb(95, 75, 32)), index, index + query.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.ForegroundColorSpan(Color.rgb(255, 221, 139)), index, index + query.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     }
 
@@ -412,21 +650,35 @@ class MainActivity : Activity() {
         }
         option("Lock vault", Color.rgb(45, 57, 86)) { lockNow() }
         dialog.show()
+        styleAuraDialog(dialog)
     }
 
     private fun kindGlyph(kind: String) = when (kind) { "Bank" -> "◈"; "Password" -> "⌑"; "Card" -> "▭"; else -> "✳" }
     private fun chooseItemType() {
         val types = arrayOf("Payment card", "Take card photo", "Choose card image", "Bank login", "Password", "Custom item")
-        AlertDialog.Builder(this).setTitle("Add to your vault").setItems(types) { _, which ->
-            when (which) {
+        val icons = arrayOf("▭", "◎", "▧", "◈", "⌑", "✳")
+        val colors = arrayOf(Color.rgb(43, 104, 184), Color.rgb(41, 134, 112), Color.rgb(118, 77, 170), Color.rgb(190, 127, 39), Color.rgb(45, 126, 155), Color.rgb(179, 75, 106))
+        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), dp(4)) }
+        val chooser = AlertDialog.Builder(this).setTitle("Add to your vault").setView(panel).setNegativeButton("Cancel", null).create()
+        types.forEachIndexed { index, type ->
+            panel.addView(Button(this).apply {
+                text = "${icons[index]}     $type"; textSize = 15f; isAllCaps = false; gravity = Gravity.CENTER_VERTICAL
+                setTextColor(Color.WHITE); background = rounded(colors[index], 18); setPadding(dp(18), 0, dp(18), 0)
+                setOnClickListener {
+                    chooser.dismiss()
+                    when (index) {
                 0 -> addEntry("Card")
                 1 -> captureCardImage()
                 2 -> pickCardImage()
                 3 -> addEntry("Bank")
                 4 -> addEntry("Password")
                 else -> addEntry("Custom")
+                    }
+                }
+            }, LinearLayout.LayoutParams(-1, dp(52)).apply { bottomMargin = dp(9) })
             }
-        }.show()
+        chooser.show()
+        styleAuraDialog(chooser)
     }
 
     private fun pickCardImage() {
@@ -533,9 +785,18 @@ class MainActivity : Activity() {
         return sum % 10 == 0
     }
     private fun searchEntries() {
-        val input = EditText(this).apply { hint = "Search names, banks, websites"; setText(searchQuery) }
-        AlertDialog.Builder(this).setTitle("Search your vault").setView(input).setNegativeButton("Clear") { _, _ -> searchQuery = ""; render() }
-            .setPositiveButton("Show results") { _, _ -> searchQuery = input.text.toString().trim(); activeSection = "Overview"; render() }.show()
+        searchFeedback?.let(mainHandler::removeCallbacks)
+        searchFeedback = null
+        activeSection = "Overview"
+        searchQuery = ""
+        searchMode = true
+        render()
+        val input = searchInput ?: return
+        input.requestFocus()
+        input.post {
+            (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .showSoftInput(input, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        }
     }
     private fun showCommandPalette() {
         val actions = arrayOf("Add payment card", "Add bank login", "Add password", "Create custom item", "Search vault", "Lock vault")
@@ -550,66 +811,107 @@ class MainActivity : Activity() {
             }
         }.show()
     }
-    private fun confirmCopy(name: String, value: String) {
-        AlertDialog.Builder(this).setTitle("Copy $name?").setMessage("Sensitive values are cleared from the clipboard after 30 seconds.")
-            .setNegativeButton("Cancel", null).setPositiveButton("Copy") { _, _ -> copySensitive(value) }.show()
+    private fun maybeOfferFirstFingerprintPrompt() {
+        val preferences = getSharedPreferences("security_preferences", Context.MODE_PRIVATE)
+        if (preferences.getBoolean("first_fingerprint_prompt_seen", false)) return
+        preferences.edit().putBoolean("first_fingerprint_prompt_seen", true).apply()
+        if (VaultStore.biometricPayload(this) != null) return
+        AlertDialog.Builder(this)
+            .setTitle("Enable Fingerprint Authentication?")
+            .setMessage("Use your fingerprint for faster and secure access to your vault.")
+            .setPositiveButton("Enable") { _, _ -> enableBiometric() }
+            .setNegativeButton("Maybe Later", null)
+            .show()
     }
 
-    private fun addEntry(kind: String, prefill: CardPrefill? = null) {
-        val form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 8, 20, 0) }
-        if (prefill != null) form.addView(TextView(this).apply {
+    private fun editEntry(entry: VaultStore.Entry) {
+        addEntry(entry.kind, editing = entry)
+    }
+
+    private fun deleteEntry(entry: VaultStore.Entry, entries: MutableList<VaultStore.Entry>) {
+        AlertDialog.Builder(this).setTitle("Delete ${entry.title}?")
+            .setMessage("This permanently removes it from the vault.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Delete") { _, _ ->
+                window.decorView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                entries.removeAll { it.id == entry.id }
+                persistAndRender("✓ Item Deleted")
+            }.show()
+    }
+
+    private fun addEntry(kind: String, prefill: CardPrefill? = null, editing: VaultStore.Entry? = null) {
+        val formContent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(16), dp(20), dp(12)) }
+        val form = ScrollView(this).apply { isFillViewport = true; addView(formContent) }
+        if (prefill != null) formContent.addView(TextView(this).apply {
             text = "Imported suggestions — check every character before saving. The selected image is not stored in your vault."
             textSize = 13f; setTextColor(muted); setPadding(0, 0, 0, dp(12))
         })
-        fun edit(h: String, isSecret: Boolean = false): EditText = EditText(this).apply {
+        fun edit(h: String, isSecret: Boolean = false, initialValue: String = ""): EditText = EditText(this).apply {
             hint = h
-            setTextColor(ink); setHintTextColor(muted); background = rounded(Color.rgb(34, 38, 51), 14); setPadding(dp(14), dp(8), dp(14), dp(8))
+            gravity = Gravity.CENTER
+            setTextColor(ink); setHintTextColor(muted); background = rounded(Color.rgb(34, 38, 51), 18); setPadding(dp(14), dp(8), dp(14), dp(8))
             importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
             if (isSecret) inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            form.addView(this, LinearLayout.LayoutParams(-1, dp(52)).apply { bottomMargin = dp(8) })
+            setText(initialValue)
+            formContent.addView(this, LinearLayout.LayoutParams(-1, dp(54)).apply { bottomMargin = dp(10) })
         }
-        val title = edit(when(kind) { "Bank" -> "Bank name"; "Card" -> "Card nickname"; "Password" -> "Website or app"; else -> "Item name" })
-        val cardholder = if (kind == "Card") edit("Cardholder name") else null
-        val user = if (kind == "Password") edit("Username or email") else null
-        val secret = if (kind == "Password") edit("Password", true) else null
+        val title = edit(when(kind) { "Bank" -> "Bank name"; "Card" -> "Card nickname"; "Password" -> "Website or app"; else -> "Item name" }, initialValue = editing?.title.orEmpty())
+        val cardholder = if (kind == "Card") edit("Cardholder name", initialValue = editing?.cardholderName.orEmpty()) else null
+        val user = if (kind == "Password") edit("Username or email", initialValue = editing?.username.orEmpty()) else null
+        val secret = if (kind == "Password") edit("Password", true, editing?.secret.orEmpty()) else null
         if (kind == "Password") Button(this).apply {
             text = "Generate strong password"
+            isAllCaps = false; textSize = 14f; setTextColor(Color.WHITE); background = rounded(Color.rgb(55, 74, 127), 16)
+            minHeight = dp(48)
             setOnClickListener {
                 val alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*_-+=?"
                 val random = java.security.SecureRandom()
                 secret?.setText((1..24).map { alphabet[random.nextInt(alphabet.length)] }.joinToString(""))
             }
-        }.also { form.addView(it) }
-        val number = if (kind == "Card") edit("Card number").apply { setText(prefill?.number.orEmpty()) } else null
-        val expiry = if (kind == "Card") edit("Expiry date").apply { setText(prefill?.expiry.orEmpty()) } else null
-        val cvv = if (kind == "Card") edit("CVV", true).apply { setText(prefill?.cvv.orEmpty()) } else null
+        }.also { formContent.addView(it) }
+        val number = if (kind == "Card") edit("Card number", initialValue = prefill?.number ?: editing?.cardNumber.orEmpty()) else null
+        val expiry = if (kind == "Card") edit("Expiry date", initialValue = prefill?.expiry ?: editing?.expiry.orEmpty()) else null
+        val cvv = if (kind == "Card") edit("CVV", true, prefill?.cvv ?: editing?.cvv.orEmpty()) else null
         val custom = linkedMapOf<String, EditText>()
         if (kind == "Bank") {
-            listOf("Account number", "IFSC code", "Customer ID", "Username", "Net banking password", "Mobile MPIN").forEach { key -> custom[key] = edit(key, key.contains("password", true) || key.contains("MPIN")) }
+            val keys = (listOf("Account number", "IFSC code", "Customer ID", "Username", "Net banking password", "Mobile MPIN") + editing?.customFields?.keys.orEmpty()).distinct()
+            keys.forEach { key -> custom[key] = edit(key, key.contains("password", true) || key.contains("MPIN"), editing?.customFields?.get(key).orEmpty()) }
         }
         if (kind == "Custom") {
-            val keysInput = edit("Your field names, comma separated (e.g. Policy number, Renewal date)")
-            form.addView(Button(this).apply {
+            val keysInput = edit("Your field names, comma separated (e.g. Policy number, Renewal date)", initialValue = editing?.customFields?.keys?.joinToString(", ").orEmpty())
+            fun addCustomField(key: String) {
+                if (custom.containsKey(key)) return
+                val isSecret = key.contains("password", true) || key.contains("pin", true) || key.contains("secret", true) || key.contains("cvv", true)
+                custom[key] = edit(key, isSecret, editing?.customFields?.get(key).orEmpty())
+            }
+            formContent.addView(Button(this).apply {
                 text = "Create fields from names"; isAllCaps = false; setOnClickListener {
                     val names = keysInput.text.toString().split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
                     if (names.isEmpty()) { message("Enter at least one custom field name."); return@setOnClickListener }
-                    names.forEach { key -> if (!custom.containsKey(key)) custom[key] = edit(key, key.contains("password", true) || key.contains("pin", true) || key.contains("secret", true)) }
-                    it.isEnabled = false
+                    names.forEach(::addCustomField)
                 }
+                textSize = 14f; setTextColor(Color.WHITE); background = rounded(Color.rgb(65, 82, 139), 16); minHeight = dp(48)
             })
+            editing?.customFields?.keys?.forEach(::addCustomField)
         }
-        val notes = edit("Notes (optional)")
-        AlertDialog.Builder(this).setTitle(when(kind) { "Bank" -> "Add bank login"; "Card" -> "Add payment card"; "Password" -> "Add password"; else -> "Create custom item" }).setView(form).setNegativeButton("Cancel", null)
-            .setPositiveButton("Save", null).create().also { dialog ->
+        val notes = edit("Notes (optional)", initialValue = editing?.notes.orEmpty())
+        AlertDialog.Builder(this).setTitle(if (editing != null) "Edit ${editing.title}" else when(kind) { "Bank" -> "Add bank login"; "Card" -> "Add payment card"; "Password" -> "Add password"; else -> "Create custom item" }).setView(form).setNegativeButton("Cancel", null)
+            .setPositiveButton(if (editing != null) "Save changes" else "Save", null).create().also { dialog ->
                 dialog.setOnShowListener {
+                    styleAuraDialog(dialog)
                     dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                         if (title.text.isBlank() || (kind == "Password" && secret?.text.isNullOrBlank()) || (kind == "Card" && number?.text.isNullOrBlank()) || (kind == "Custom" && custom.isEmpty())) {
                             message("Enter a name, required details, and any custom fields."); return@setOnClickListener
                         }
-                        val e = VaultStore.Entry(UUID.randomUUID().toString(), kind, title.text.toString(), cardholder?.text.toString(), user?.text.toString(),
+                        val e = VaultStore.Entry(editing?.id ?: UUID.randomUUID().toString(), kind, title.text.toString(), cardholder?.text.toString(), user?.text.toString(),
                             secret?.text.toString(), number?.text.toString(), expiry?.text.toString(), cvv?.text.toString(), notes.text.toString(),
                             custom.mapValues { it.value.text.toString() }.filterValues { it.isNotBlank() })
-                        session!!.entries.add(e); persistAndRender(); dialog.dismiss()
+                        if (editing == null) session!!.entries.add(e)
+                        else {
+                            val index = session!!.entries.indexOfFirst { it.id == editing.id }
+                            if (index >= 0) session!!.entries[index] = e
+                        }
+                        persistAndRender(if (editing == null) "✓ Item Saved" else "✓ Changes Saved"); dialog.dismiss()
                     }
                 }
                 dialog.show()
@@ -646,6 +948,7 @@ class MainActivity : Activity() {
                             .setNegativeButton("Cancel", null).setPositiveButton("Share") { _, _ ->
                                 val body = chosen.joinToString("\n") { "$it: ${fields[it]}" }
                                 startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, body), "Share vault details"))
+                                success("✓ Details Ready to Share")
                             }.show()
                         dialog.dismiss()
                     }
@@ -656,19 +959,38 @@ class MainActivity : Activity() {
 
     private fun copySensitive(value: String) {
         if (value.isBlank()) return message("There is nothing to copy.")
+        pendingClipboardClear?.let(mainHandler::removeCallbacks)
+        val appContext = applicationContext
+        val clipboard = appContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val token = CLIP_TOKEN_PREFIX + UUID.randomUUID().toString()
         val clip = ClipData.newPlainText("Sensitive vault value", value)
-        clip.description.extras = android.os.PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clip.description.extras = android.os.PersistableBundle().apply {
+            putBoolean("android.content.extra.IS_SENSITIVE", true)
+            putString(CLIP_TOKEN_EXTRA, token)
+        }
         clipboard.setPrimaryClip(clip)
-        copiedText = value
-        mainHandler.removeCallbacks(clearClipboard)
-        mainHandler.postDelayed(clearClipboard, 30_000)
-        message("Copied. Clipboard clears in 30 seconds.")
+        // Capture only the application context and unique clip token. The callback
+        // remains safe to run after this Activity has been destroyed.
+        val clearTask = Runnable {
+            val currentToken = clipboard.primaryClip?.description?.extras?.getString(CLIP_TOKEN_EXTRA)
+            if (currentToken == token) clipboard.clearPrimaryClip()
+        }
+        pendingClipboardClear = clearTask
+        mainHandler.postDelayed(clearTask, 30_000)
+        window.decorView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
     }
 
-    private fun persistAndRender() {
+    private fun clearVaultClipboardNow() {
+        pendingClipboardClear?.let(mainHandler::removeCallbacks)
+        pendingClipboardClear = null
+        val clipboard = applicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val currentToken = clipboard.primaryClip?.description?.extras?.getString(CLIP_TOKEN_EXTRA)
+        if (currentToken?.startsWith(CLIP_TOKEN_PREFIX) == true) clipboard.clearPrimaryClip()
+    }
+
+    private fun persistAndRender(successMessage: String? = null) {
         runCatching { VaultStore.save(this, session!!.entries, session!!.dek) }
-            .onSuccess { render() }
+            .onSuccess { render(); successMessage?.let(::success) }
             .onFailure { message("Could not save the encrypted vault: ${it.message}") }
     }
 
@@ -685,7 +1007,7 @@ class MainActivity : Activity() {
                         runCatching {
                             val authorizedCipher = result.cryptoObject!!.cipher!!
                             VaultStore.saveBiometricPayload(this@MainActivity, authorizedCipher.iv, authorizedCipher.doFinal(session!!.dek))
-                        }.onSuccess { message("Fingerprint unlock enabled."); render() }
+                        }.onSuccess { this@MainActivity.window.decorView.performHapticFeedback(HapticFeedbackConstants.CONFIRM); success("✓ Fingerprint unlock enabled."); render() }
                             .onFailure { VaultStore.clearBiometric(this@MainActivity); message("Could not enable fingerprint unlock.") }
                     }
                     override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
@@ -706,7 +1028,7 @@ class MainActivity : Activity() {
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     runCatching { VaultStore.decryptBiometric(result.cryptoObject!!.cipher!!, payload) }
-                        .onSuccess { dek -> session = VaultStore.Session(dek, VaultStore.entriesWithDek(this@MainActivity, dek)); recoveryUnlockMode = false; mainHandler.postDelayed(idleLock, 60_000); render() }
+                        .onSuccess { dek -> this@MainActivity.window.decorView.performHapticFeedback(HapticFeedbackConstants.CONFIRM); session = VaultStore.Session(dek, VaultStore.entriesWithDek(this@MainActivity, dek)); recoveryUnlockMode = false; mainHandler.postDelayed(idleLock, 60_000); render(); root.post { maybeOfferFirstFingerprintPrompt() } }
                         .onFailure { message("Fingerprint unlock failed. Use your master password or recovery key.") }
                 }
             })
@@ -715,6 +1037,15 @@ class MainActivity : Activity() {
     private fun showRecoveryUnlock() { recoveryUnlockMode = true; render() }
     private var recoveryUnlockMode = false
 
-    private fun lockNow() { mainHandler.removeCallbacks(idleLock); session?.dek?.fill(0); session = null; recoveryUnlockMode = false; render() }
-    private fun message(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+    private fun lockNow() {
+        mainHandler.removeCallbacks(idleLock)
+        clearVaultClipboardNow()
+        session?.dek?.fill(0)
+        session = null
+        recoveryUnlockMode = false
+        clearSearchState()
+        render()
+    }
+    private fun success(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+    private fun message(text: String, duration: Int = Toast.LENGTH_LONG) = Toast.makeText(this, text, duration).show()
 }
