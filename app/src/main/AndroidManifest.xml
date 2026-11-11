@@ -1,11 +1,17 @@
-﻿<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+﻿<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Card import: the camera is in-app for "Scan a card"; image upload uses
+         the system photo picker, which grants access to only the chosen photo
+         and needs no media permission here. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- ML Kit's bundled recognizer works offline. Drop transitive network
+         permissions so the installed app cannot reach the internet at all. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
     <application android:theme="@style/AppTheme" android:label="Aura Vault" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:allowBackup="false" android:fullBackupContent="false">
-        <provider
-            android:name=".CameraCacheProvider"
-            android:authorities="${applicationId}.camera"
-            android:exported="false"
-            android:grantUriPermissions="true" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

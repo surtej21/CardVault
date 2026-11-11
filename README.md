@@ -1,10 +1,10 @@
-﻿# Card Vault (early prototype)
+﻿# Aura Vault (early prototype)
 
-A personal, offline Android vault prototype.
+A personal, offline Android vault prototype with the Aura dark-glass interface.
 
 ## Current state
 
-The app has master-password setup and unlock, a one-time recovery key, encrypted card and password entries, password generation, optional fingerprint unlock, selected-field sharing with confirmation, and sensitive clipboard handling. It has not been independently security-reviewed or exercised on a physical device. Keep using dummy information until those checks are complete.
+The app has master-password setup and unlock, a one-time recovery key, encrypted card, bank, password and custom entries, on-device card OCR, password generation, optional fingerprint unlock, selected-field sharing with confirmation, and sensitive clipboard handling. The native UI follows the Aura design prototype with a dashboard overview, searchable collections, premium card visuals, a security center and settings. It has not been independently security-reviewed or exercised on a physical device. Keep using dummy information until those checks are complete.
 
 ## Project
 
@@ -18,12 +18,17 @@ The app has master-password setup and unlock, a one-time recovery key, encrypted
 
 Open this folder in Android Studio and allow Gradle sync. Android Studio may offer to install the required Android SDK. To run it, enable Developer options and USB debugging on an Android 11+ device, connect it by USB, then press Run; an emulator also works.
 
+To build from a terminal:
+
+```powershell
+.\gradlew.bat assembleDebug
+.\gradlew.bat testDebugUnitTest
+```
+
+The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+
 ## Security notes
 
 The master password must be at least 12 characters. The recovery key is shown during setup and replacement; keep it outside the phone and private. Losing both the password and recovery key means losing access to the vault. Changing or removing enrolled fingerprints can disable fingerprint unlock; the master password and recovery key remain the recovery path.
 
 The app still needs a focused security review and device-level checks before storing real payment credentials. Sharing sends selected information to another app; CVV is excluded by default and requires confirmation when copied or shared.
-
-## Web dashboard concept
-
-A separate React/Next.js UI prototype lives in `web/`. It is for exploring a premium desktop and mobile interface only; it is not connected to the Android vault and must not receive real credentials. See `web/README.md` for setup instructions.
