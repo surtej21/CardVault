@@ -147,7 +147,11 @@ class MainActivity : Activity() {
                 predictiveBackCallback
             )
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // Release builds block screen capture and recent-app previews. Debug
+        // builds leave it off so the emulator can capture design screenshots.
+        if (!BuildConfig.DEBUG) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
         window.setDecorFitsSystemWindows(false)
         window.statusBarColor = Color.TRANSPARENT
@@ -277,7 +281,7 @@ class MainActivity : Activity() {
         val previousScroll = if (preserveScroll && ::contentScroll.isInitialized) contentScroll.scrollY else 0
         val vaultVisible = session != null && recoveryToShow == null && importMode == null
 
-        val screen = FrameLayout(this).apply { background = VaultTheme.auroraBackground() }
+        val screen = FrameLayout(this).apply { background = VaultTheme.auroraBackground(this@MainActivity) }
 
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -378,35 +382,28 @@ class MainActivity : Activity() {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(
-                    Color.argb(248, 7, 8, 12),
-                    Color.argb(232, 7, 8, 12),
-                    Color.argb(0, 7, 8, 12)
+                    Color.argb(252, 8, 9, 11),
+                    Color.argb(252, 8, 9, 11),
+                    Color.argb(250, 8, 9, 11),
+                    Color.argb(244, 8, 9, 11),
+                    Color.argb(0, 8, 9, 11)
                 )
             )
-            setPadding(dp(20), dp(8), dp(20), dp(10))
+            setPadding(dp(20), dp(8), dp(20), dp(12))
         }
 
         val brand = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        brand.addView(FrameLayout(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(10).toFloat()
-                setColor(VaultTheme.surfaceElevated)
-                setStroke(dp(1), VaultTheme.border)
-            }
-            addView(VaultUi.icon(this@MainActivity, R.drawable.ic_shield, VaultTheme.accent, 18), FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
-        }, LinearLayout.LayoutParams(dp(32), dp(32)))
+        brand.addView(VaultUi.vaultDoor(this, 34), LinearLayout.LayoutParams(dp(34), dp(34)))
         val wordmark = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.BOTTOM
-            setPadding(dp(9), 0, 0, dp(1))
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), 0, 0, 0)
         }
-        wordmark.addView(VaultUi.text(this, "Aura", 15.5f, VaultTheme.textPrimary, 600, heading = true, letterSpacing = 0.005f))
-        wordmark.addView(VaultUi.text(this, "vault", 10.5f, VaultTheme.textMuted, 500, letterSpacing = 0.02f).apply {
-            setPadding(dp(4), 0, 0, dp(1))
+        wordmark.addView(VaultUi.text(this, "AURA", 15.5f, VaultTheme.textPrimary, 650, heading = true, letterSpacing = 0.14f))
+        wordmark.addView(VaultUi.text(this, "VAULT", 8f, VaultTheme.accent, 650, heading = true, letterSpacing = 0.32f).apply {
+            setPadding(0, dp(1), 0, 0)
         })
         brand.addView(wordmark)
         bar.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
@@ -421,14 +418,14 @@ class MainActivity : Activity() {
                 chooseItemType()
             }
             VaultTheme.applySpringTouch(this)
-            addView(VaultUi.icon(this@MainActivity, R.drawable.ic_plus, Color.WHITE, 19), FrameLayout.LayoutParams(dp(19), dp(19), Gravity.CENTER))
+            addView(VaultUi.icon(this@MainActivity, R.drawable.ic_plus, VaultTheme.buttonInk, 20), FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
         }
-        bar.addView(add, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(7) })
-        bar.addView(VaultUi.iconButton(this, R.drawable.ic_settings, "Settings", 38) { openSettings() }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(7) })
-        bar.addView(VaultUi.iconButton(this, R.drawable.ic_lock, "Lock vault", 38) {
+        bar.addView(add, LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(8) })
+        bar.addView(VaultUi.iconButton(this, R.drawable.ic_settings, "Settings", 44) { openSettings() }, LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(8) })
+        bar.addView(VaultUi.iconButton(this, R.drawable.ic_lock, "Lock vault", 44) {
             window.decorView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
             lockNow()
-        }, LinearLayout.LayoutParams(dp(38), dp(38)))
+        }, LinearLayout.LayoutParams(dp(44), dp(44)))
         return bar
     }
 
@@ -438,10 +435,10 @@ class MainActivity : Activity() {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(
-                    Color.argb(0, 7, 8, 12),
-                    Color.argb(150, 7, 8, 12),
-                    Color.argb(240, 7, 8, 12),
-                    Color.argb(252, 7, 8, 12)
+                    Color.argb(0, 8, 9, 11),
+                    Color.argb(160, 8, 9, 11),
+                    Color.argb(246, 8, 9, 11),
+                    Color.argb(252, 8, 9, 11)
                 )
             )
             setPadding(dp(16), dp(10), dp(16), dp(12))
@@ -450,8 +447,8 @@ class MainActivity : Activity() {
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            background = VaultTheme.glassShape(this@MainActivity, 22, strong = true)
-            setPadding(dp(5), dp(5), dp(5), dp(5))
+            background = VaultTheme.glassShape(this@MainActivity, 20, strong = true)
+            setPadding(dp(6), dp(5), dp(6), dp(5))
         }
         PRIMARY_SECTIONS.forEach { section ->
             val selected = activeSection == section
@@ -461,14 +458,7 @@ class MainActivity : Activity() {
                 isClickable = true
                 isFocusable = true
                 contentDescription = navLabel(section)
-                if (selected) {
-                    background = GradientDrawable().apply {
-                        shape = GradientDrawable.RECTANGLE
-                        cornerRadius = dp(17).toFloat()
-                        setColor(VaultTheme.surfaceElevated)
-                        setStroke(dp(1), VaultTheme.borderStrong)
-                    }
-                }
+                background = VaultTheme.rowRipple(this@MainActivity)
                 setOnClickListener {
                     performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     if (activeSection != section) {
@@ -478,11 +468,16 @@ class MainActivity : Activity() {
                     }
                 }
             }
-            item.addView(VaultUi.icon(this, navIcon(section), if (selected) VaultTheme.accent else VaultTheme.textMuted, 20))
+            item.addView(View(this).apply {
+                background = if (selected) VaultTheme.accentButtonDrawable(this@MainActivity, 99) else null
+            }, LinearLayout.LayoutParams(dp(18), dp(2)).apply {
+                bottomMargin = dp(5)
+            })
+            item.addView(VaultUi.icon(this, navIcon(section), if (selected) VaultTheme.accent else VaultTheme.textMuted, 21))
             item.addView(VaultUi.text(
-                this, navLabel(section), 9f,
+                this, navLabel(section), 9.5f,
                 if (selected) VaultTheme.textPrimary else VaultTheme.textMuted,
-                if (selected) 600 else 500,
+                if (selected) 650 else 500,
                 gravity = Gravity.CENTER
             ).apply { setPadding(0, dp(3), 0, 0) })
             bar.addView(item, LinearLayout.LayoutParams(0, dp(54), 1f))
@@ -514,35 +509,31 @@ class MainActivity : Activity() {
         val lockup = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, dp(8), 0, 0)
+            setPadding(0, dp(6), 0, 0)
         }
-        lockup.addView(FrameLayout(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(20).toFloat()
-                setColor(VaultTheme.surfaceElevated)
-                setStroke(dp(1), VaultTheme.border)
-            }
-            addView(VaultUi.icon(this@MainActivity, R.drawable.ic_shield_check, VaultTheme.accent, 27), FrameLayout.LayoutParams(dp(27), dp(27), Gravity.CENTER))
-        }, LinearLayout.LayoutParams(dp(64), dp(64)))
-        lockup.addView(VaultUi.text(this, "Aura vault", 11f, VaultTheme.accent, 600, heading = true, letterSpacing = 0.03f, gravity = Gravity.CENTER).apply {
-            setPadding(0, dp(14), 0, 0)
+        lockup.addView(VaultUi.vaultDoor(this, 132), LinearLayout.LayoutParams(dp(132), dp(132)))
+        lockup.addView(VaultUi.text(
+            this, "AURA VAULT", 10f, VaultTheme.accent, 650,
+            heading = true, letterSpacing = 0.34f, gravity = Gravity.CENTER
+        ).apply { setPadding(0, dp(16), 0, 0) })
+        lockup.addView(VaultUi.brassRule(this, 48), LinearLayout.LayoutParams(dp(48), dp(1)).apply {
+            topMargin = dp(12)
         })
         root.addView(lockup, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(26) })
 
-        root.addView(VaultUi.text(this, eyebrow, 9.5f, VaultTheme.textMuted, 500, letterSpacing = 0.01f, gravity = Gravity.CENTER))
-        root.addView(VaultUi.gradientText(this, title, 27f, weight = 600).apply {
+        root.addView(VaultUi.text(this, eyebrow.uppercase(), 10f, VaultTheme.textFaint, 600, letterSpacing = 0.16f, gravity = Gravity.CENTER))
+        root.addView(VaultUi.gradientText(this, title, 29f, weight = 600).apply {
             gravity = Gravity.CENTER
             setPadding(0, dp(8), 0, dp(10))
         }, LinearLayout.LayoutParams(-1, -2))
-        root.addView(VaultUi.text(this, subtitle, 13f, VaultTheme.textSecondary, 430, gravity = Gravity.CENTER, lineSpacing = 1.35f).apply {
-            setPadding(dp(10), 0, dp(10), dp(22))
+        root.addView(VaultUi.text(this, subtitle, 13.5f, VaultTheme.textSecondary, 430, gravity = Gravity.CENTER, lineSpacing = 1.35f).apply {
+            setPadding(dp(8), 0, dp(8), dp(24))
         }, LinearLayout.LayoutParams(-1, -2))
     }
 
     private fun formPanel(): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        background = VaultTheme.glassShape(this@MainActivity, 20, strong = true)
+        background = VaultTheme.glassShape(this@MainActivity, 14, strong = true)
         setPadding(dp(16), dp(16), dp(16), dp(8))
     }
 
@@ -554,25 +545,25 @@ class MainActivity : Activity() {
         initialValue: String = ""
     ): EditText {
         if (label.isNotBlank()) {
-            host.addView(VaultUi.text(this, label, 9.5f, VaultTheme.textMuted, 500, letterSpacing = 0.01f).apply {
-                setPadding(dp(2), 0, 0, dp(6))
+            host.addView(VaultUi.text(this, label.uppercase(), 10.5f, VaultTheme.textMuted, 600, letterSpacing = 0.1f).apply {
+                setPadding(dp(2), 0, 0, dp(7))
             })
         }
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = VaultTheme.glassShape(this@MainActivity, 13)
+            background = VaultTheme.glassShape(this@MainActivity, 10, strong = false)
             setPadding(dp(14), 0, dp(8), 0)
         }
         val edit = EditText(this).apply {
             this.hint = hint
-            textSize = 14f
+            textSize = 15f
             importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
             setTextColor(VaultTheme.textPrimary)
             setHintTextColor(VaultTheme.textFaint)
             background = null
             typeface = VaultTheme.typeface(this@MainActivity, 450)
-            setPadding(0, dp(14), 0, dp(14))
+            setPadding(0, dp(16), 0, dp(16))
             inputType = if (secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             else InputType.TYPE_CLASS_TEXT
             imeOptions = if (secret) android.view.inputmethod.EditorInfo.IME_ACTION_DONE
@@ -591,7 +582,7 @@ class MainActivity : Activity() {
                 contentDescription = "Show $label"
                 isClickable = true
                 isFocusable = true
-                addView(VaultUi.icon(this@MainActivity, R.drawable.ic_eye, VaultTheme.textMuted, 17), FrameLayout.LayoutParams(dp(17), dp(17), Gravity.CENTER))
+                addView(VaultUi.icon(this@MainActivity, R.drawable.ic_eye, VaultTheme.textMuted, 18), FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
                 setOnClickListener {
                     visible = !visible
                     edit.inputType = if (visible) {
@@ -604,36 +595,36 @@ class MainActivity : Activity() {
                     contentDescription = if (visible) "Hide $label" else "Show $label"
                 }
             }
-            container.addView(eye, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginStart = dp(4) })
+            container.addView(eye, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginStart = dp(4) })
         }
 
         edit.setOnFocusChangeListener { _, hasFocus ->
             container.background = VaultTheme.glassShape(
                 this@MainActivity,
-                13,
+                10,
                 strong = hasFocus,
                 borderColor = if (hasFocus) VaultTheme.accent else VaultTheme.border
             )
         }
-        host.addView(container, LinearLayout.LayoutParams(-1, dp(52)).apply { bottomMargin = dp(12) })
+        host.addView(container, LinearLayout.LayoutParams(-1, dp(56)).apply { bottomMargin = dp(12) })
         return edit
     }
 
     private fun primaryBtn(text: String, iconRes: Int? = null, action: () -> Unit): LinearLayout {
-        val button = VaultUi.primaryButton(this, text, iconRes, 52, action)
-        root.addView(button, LinearLayout.LayoutParams(-1, dp(52)).apply { bottomMargin = dp(10) })
+        val button = VaultUi.primaryButton(this, text, iconRes, 54, action)
+        root.addView(button, LinearLayout.LayoutParams(-1, dp(54)).apply { bottomMargin = dp(10) })
         return button
     }
 
     private fun secondaryBtn(text: String, iconRes: Int? = null, action: () -> Unit): LinearLayout {
-        val button = VaultUi.secondaryButton(this, text, iconRes, 50, action)
-        root.addView(button, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(10) })
+        val button = VaultUi.secondaryButton(this, text, iconRes, 52, action)
+        root.addView(button, LinearLayout.LayoutParams(-1, dp(52)).apply { bottomMargin = dp(10) })
         return button
     }
 
     private fun textBtn(text: String, color: Int = VaultTheme.textSecondary, action: () -> Unit) {
-        val tv = VaultUi.text(this, text, 12.5f, color, 500, gravity = Gravity.CENTER).apply {
-            setPadding(0, dp(10), 0, dp(10))
+        val tv = VaultUi.text(this, text, 13f, color, 500, gravity = Gravity.CENTER).apply {
+            setPadding(0, dp(12), 0, dp(12))
             isClickable = true
             isFocusable = true
             setOnClickListener { action() }
@@ -765,7 +756,7 @@ class MainActivity : Activity() {
             background = VaultTheme.glassShape(this@MainActivity, 18, strong = true)
             setPadding(dp(16), dp(14), dp(16), dp(14))
         }
-        keyPanel.addView(VaultUi.text(this, "Recovery key  ·  shown once", 9.5f, VaultTheme.accent, 500, letterSpacing = 0.01f))
+        keyPanel.addView(VaultUi.text(this, "RECOVERY KEY  ·  SHOWN ONCE", 9.5f, VaultTheme.accent, 600, letterSpacing = 0.12f))
         keyPanel.addView(TextView(this).apply {
             text = recoveryToShow.orEmpty()
             textSize = 13f
@@ -804,7 +795,7 @@ class MainActivity : Activity() {
         root.addView(VaultUi.text(
             this,
             "Aura cannot recover this key for you. Losing both means losing the vault.",
-            10f, VaultTheme.textFaint, 430, gravity = Gravity.CENTER, lineSpacing = 1.3f
+            11f, VaultTheme.textFaint, 430, gravity = Gravity.CENTER, lineSpacing = 1.3f
         ).apply { setPadding(dp(12), dp(10), dp(12), 0) }, LinearLayout.LayoutParams(-1, -2))
     }
 
@@ -895,25 +886,25 @@ class MainActivity : Activity() {
     }
 
     private fun addPageHeading(eyebrow: String, title: String, description: String) {
-        root.addView(VaultUi.text(this, eyebrow, 9.5f, VaultTheme.textMuted, 500, letterSpacing = 0.01f))
-        root.addView(VaultUi.text(this, title, 26f, VaultTheme.textPrimary, 600, heading = true, lineSpacing = 1.02f).apply {
+        root.addView(VaultUi.text(this, eyebrow.uppercase(), 10f, VaultTheme.textFaint, 600, letterSpacing = 0.16f))
+        root.addView(VaultUi.text(this, title, 28f, VaultTheme.textPrimary, 600, heading = true, lineSpacing = 1.02f).apply {
             setPadding(0, dp(5), 0, 0)
         }, LinearLayout.LayoutParams(-1, -2))
-        root.addView(VaultUi.text(this, description, 12.5f, VaultTheme.textSecondary, 430, lineSpacing = 1.3f).apply {
+        root.addView(VaultUi.text(this, description, 13f, VaultTheme.textSecondary, 430, lineSpacing = 1.3f).apply {
             setPadding(0, dp(7), 0, dp(18))
         }, LinearLayout.LayoutParams(-1, -2))
     }
 
     private fun sectionLabel(text: String) {
-        root.addView(VaultUi.text(this, text, 9.5f, VaultTheme.textFaint, 500, letterSpacing = 0.01f).apply {
-            setPadding(dp(2), dp(18), 0, dp(9))
+        root.addView(VaultUi.text(this, text.uppercase(), 9.5f, VaultTheme.textFaint, 600, letterSpacing = 0.16f).apply {
+            setPadding(dp(2), dp(20), 0, dp(9))
         })
     }
 
     private fun footerNote(): TextView = VaultUi.text(
-        this, "Aura vault   ·   local only   ·   v0.1",
-        8.5f, VaultTheme.textFaint, 500, letterSpacing = 0.02f, gravity = Gravity.CENTER
-    ).apply { setPadding(0, dp(14), 0, dp(8)) }
+        this, "AURA VAULT   ·   LOCAL ONLY   ·   v0.2.3",
+        9f, VaultTheme.textFaint, 600, letterSpacing = 0.14f, gravity = Gravity.CENTER
+    ).apply { setPadding(0, dp(16), 0, dp(8)) }
 
     private fun go(section: String) {
         activeSection = section
@@ -931,39 +922,41 @@ class MainActivity : Activity() {
         val date = DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.getDefault()).format(LocalDate.now())
         addPageHeading(date, "Your vault", "Cards, logins and passwords, stored only on this device.")
 
-        // Welcome hero
+        // Vault-door hero — the signature plate.
         val hero = FrameLayout(this).apply {
-            background = VaultTheme.glassShape(this@MainActivity, 22, strong = true)
+            background = VaultTheme.plateShape(this@MainActivity, 18)
             clipToOutline = true
-            layoutParams = LinearLayout.LayoutParams(-1, dp(226))
+            layoutParams = LinearLayout.LayoutParams(-1, dp(246))
         }
+        addRivet(hero, Gravity.TOP or Gravity.START)
+        addRivet(hero, Gravity.TOP or Gravity.END)
+        addRivet(hero, Gravity.BOTTOM or Gravity.START)
+        addRivet(hero, Gravity.BOTTOM or Gravity.END)
+
         val heroCopy = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(19), dp(100), dp(38))
+            setPadding(dp(20), dp(20), dp(116), dp(44))
         }
         val kicker = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
         kicker.addView(View(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(VaultTheme.accentMint)
-            }
-        }, LinearLayout.LayoutParams(dp(6), dp(6)).apply { marginEnd = dp(7) })
-        kicker.addView(VaultUi.text(this, "Private space", 8.5f, VaultTheme.textMuted, 500, letterSpacing = 0.01f))
+            background = VaultTheme.brassRuleDrawable(this@MainActivity)
+        }, LinearLayout.LayoutParams(dp(18), dp(1)).apply { marginEnd = dp(8) })
+        kicker.addView(VaultUi.text(this, "AURA VAULT  ·  SEALED", 9f, VaultTheme.accent, 650, letterSpacing = 0.18f))
         heroCopy.addView(kicker)
-        heroCopy.addView(VaultUi.text(this, "Everything important,", 20f, VaultTheme.textPrimary, 600, heading = true, lineSpacing = 1.06f).apply {
-            setPadding(0, dp(10), 0, 0)
+        heroCopy.addView(VaultUi.text(this, "Everything important,", 22f, VaultTheme.textPrimary, 600, heading = true, lineSpacing = 1.04f).apply {
+            setPadding(0, dp(11), 0, 0)
         })
-        heroCopy.addView(VaultUi.text(this, "kept in one place.", 20f, VaultTheme.accent, 600, heading = true, lineSpacing = 1.06f).apply {
-            setPadding(0, 0, 0, dp(8))
+        heroCopy.addView(VaultUi.text(this, "kept in one place.", 22f, VaultTheme.accent, 600, heading = true, lineSpacing = 1.04f))
+        heroCopy.addView(VaultUi.text(this, "Cards and logins, encrypted on this device.", 11.5f, VaultTheme.textMuted, 430, lineSpacing = 1.3f).apply {
+            setPadding(0, dp(9), 0, 0)
         })
-        heroCopy.addView(VaultUi.text(this, "Cards and logins, encrypted on this device.", 10.5f, VaultTheme.textMuted, 430, lineSpacing = 1.25f))
         val securityLink = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(12), 0, 0)
+            setPadding(0, dp(14), 0, 0)
             isClickable = true
             isFocusable = true
             contentDescription = "Open security center"
@@ -972,69 +965,69 @@ class MainActivity : Activity() {
                 go("Security")
             }
         }
-        securityLink.addView(VaultUi.text(this, "View security overview", 10.5f, VaultTheme.accent, 550), LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(5) })
-        securityLink.addView(VaultUi.icon(this, R.drawable.ic_arrow_right, VaultTheme.accent, 13))
+        securityLink.addView(VaultUi.text(this, "View security overview", 11.5f, VaultTheme.accent, 550), LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) })
+        securityLink.addView(VaultUi.icon(this, R.drawable.ic_arrow_right, VaultTheme.accent, 14))
         heroCopy.addView(securityLink)
         hero.addView(heroCopy, FrameLayout.LayoutParams(-1, -1))
-        hero.addView(VaultUi.orb(this, 126), FrameLayout.LayoutParams(dp(126), dp(126), Gravity.END or Gravity.CENTER_VERTICAL).apply {
+        hero.addView(VaultUi.vaultDoor(this, 148), FrameLayout.LayoutParams(dp(148), dp(148), Gravity.END or Gravity.CENTER_VERTICAL).apply {
             rightMargin = -dp(4)
         })
         val heroFoot = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, 0, 0, 0)
         }
-        val healthy = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        healthy.addView(View(this).apply {
+        heroFoot.addView(View(this).apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(VaultTheme.accentMint)
+                setColor(VaultTheme.accent)
             }
-        }, LinearLayout.LayoutParams(dp(5), dp(5)).apply { marginEnd = dp(6) })
-        healthy.addView(VaultUi.text(this, "Vault healthy", 9f, VaultTheme.textMuted, 500))
-        heroFoot.addView(healthy, LinearLayout.LayoutParams(0, -2, 1f))
-        heroFoot.addView(VaultUi.text(this, "Local only", 8.5f, VaultTheme.textFaint, 500, letterSpacing = 0.01f))
+        }, LinearLayout.LayoutParams(dp(5), dp(5)).apply { marginEnd = dp(7) })
+        heroFoot.addView(VaultUi.text(this, "Vault sealed", 9.5f, VaultTheme.textSecondary, 500))
+        heroFoot.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        heroFoot.addView(VaultUi.text(this, "LOCAL ONLY", 9f, VaultTheme.textFaint, 600, letterSpacing = 0.14f))
         hero.addView(heroFoot, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
             leftMargin = dp(20)
             rightMargin = dp(20)
             bottomMargin = dp(13)
         })
-        root.addView(hero, LinearLayout.LayoutParams(-1, dp(226)).apply { bottomMargin = dp(12) })
+        root.addView(hero, LinearLayout.LayoutParams(-1, dp(246)).apply { bottomMargin = dp(12) })
 
-        // Collection tiles
+        // Ledger: one plate, four rows — not four little cards.
         val counts = mapOf(
             "Card" to entries.count { it.kind == "Card" },
             "Bank" to entries.count { it.kind == "Bank" },
             "Password" to entries.count { it.kind == "Password" },
             "Custom" to entries.count { it.kind == "Custom" }
         )
-        fun tileRow(first: View, second: View) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, 0, 0, dp(8))
-            }
-            row.addView(first, LinearLayout.LayoutParams(0, dp(138), 1f).apply { marginEnd = dp(8) })
-            row.addView(second, LinearLayout.LayoutParams(0, dp(138), 1f))
-            root.addView(row)
+        val total = entries.size
+        val ledger = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = VaultTheme.glassShape(this@MainActivity, 14)
+            setPadding(0, dp(13), 0, dp(4))
         }
-        tileRow(
-            VaultUi.statTile(this, R.drawable.ic_card, VaultTheme.accentBlue, "Payment cards", counts.getValue("Card").toString(), "Protected cards") { go("Cards") },
-            VaultUi.statTile(this, R.drawable.ic_bank, VaultTheme.accent, "Bank accounts", counts.getValue("Bank").toString(), "Secure accounts") { go("Bank logins") }
-        )
-        tileRow(
-            VaultUi.statTile(this, R.drawable.ic_key, VaultTheme.accentRose, "Passwords", counts.getValue("Password").toString(), "Saved logins") { go("Passwords") },
-            VaultUi.statTile(this, R.drawable.ic_folder, VaultTheme.accentMint, "Custom items", counts.getValue("Custom").toString(), "Made for you") { go("Custom") }
-        )
+        val ledgerHead = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), 0, dp(16), dp(6))
+        }
+        ledgerHead.addView(VaultUi.text(this, "IN THE VAULT", 9.5f, VaultTheme.textFaint, 600, letterSpacing = 0.16f), LinearLayout.LayoutParams(0, -2, 1f))
+        ledgerHead.addView(VaultUi.text(this, "$total ${if (total == 1) "ITEM" else "ITEMS"}", 9.5f, VaultTheme.textMuted, 600, letterSpacing = 0.1f))
+        ledger.addView(ledgerHead)
+        ledger.addView(ledgerRow(R.drawable.ic_card, "Payment cards", counts.getValue("Card").toString()) { go("Cards") })
+        ledger.addView(insetDivider(48))
+        ledger.addView(ledgerRow(R.drawable.ic_bank, "Bank accounts", counts.getValue("Bank").toString()) { go("Bank logins") })
+        ledger.addView(insetDivider(48))
+        ledger.addView(ledgerRow(R.drawable.ic_key, "Passwords", counts.getValue("Password").toString()) { go("Passwords") })
+        ledger.addView(insetDivider(48))
+        ledger.addView(ledgerRow(R.drawable.ic_folder, "Custom items", counts.getValue("Custom").toString()) { go("Custom") })
+        root.addView(ledger, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) })
 
         // Security health panel
         val audit = SecurityAudit.audit(entries)
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = VaultTheme.glassShape(this@MainActivity, 18, strong = true)
-            setPadding(dp(16), dp(15), dp(16), dp(14))
+            background = VaultTheme.glassShape(this@MainActivity, 14, strong = true)
+            setPadding(dp(16), dp(16), dp(16), dp(14))
             layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) }
         }
         val head = LinearLayout(this).apply {
@@ -1042,29 +1035,29 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         val headCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        headCopy.addView(VaultUi.text(this, "Security health", 15.5f, VaultTheme.textPrimary, 600, heading = true))
-        headCopy.addView(VaultUi.text(this, "Encrypted on this device, last checked just now.", 10.5f, VaultTheme.textMuted, 430).apply {
+        headCopy.addView(VaultUi.text(this, "Security health", 16.5f, VaultTheme.textPrimary, 600, heading = true))
+        headCopy.addView(VaultUi.text(this, "Encrypted on this device, last checked just now.", 11f, VaultTheme.textMuted, 430).apply {
             setPadding(0, dp(3), 0, 0)
         })
         head.addView(headCopy, LinearLayout.LayoutParams(0, -2, 1f))
-        head.addView(VaultUi.iconButton(this, R.drawable.ic_arrow_up_right, "Open security center", 32) { go("Security") })
+        head.addView(VaultUi.iconButton(this, R.drawable.ic_arrow_up_right, "Open security center", 40) { go("Security") })
         panel.addView(head, LinearLayout.LayoutParams(-1, -2))
 
         val scoreRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(10), 0, 0)
+            setPadding(0, dp(12), 0, 0)
         }
-        scoreRow.addView(VaultUi.scoreRing(this, audit.score, 96).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(96), dp(96)).apply { marginEnd = dp(14) }
+        scoreRow.addView(VaultUi.scoreRing(this, audit.score, 100).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(100), dp(100)).apply { marginEnd = dp(14) }
         })
         val scoreCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val color = scoreColor(audit.score)
         scoreCopy.addView(statusPill(audit.statusText, color))
-        scoreCopy.addView(VaultUi.text(this, "Current standing", 14.5f, VaultTheme.textPrimary, 600, heading = true).apply {
-            setPadding(0, dp(7), 0, 0)
+        scoreCopy.addView(VaultUi.text(this, "Current standing", 15.5f, VaultTheme.textPrimary, 600, heading = true).apply {
+            setPadding(0, dp(8), 0, 0)
         })
-        scoreCopy.addView(VaultUi.text(this, if (audit.recommendations.isEmpty()) "No weak or reused passwords right now." else audit.recommendations.joinToString("  ·  "), 10f, VaultTheme.textMuted, 430, lineSpacing = 1.3f).apply {
+        scoreCopy.addView(VaultUi.text(this, if (audit.recommendations.isEmpty()) "No weak or reused passwords right now." else audit.recommendations.joinToString("  ·  "), 10.5f, VaultTheme.textMuted, 430, lineSpacing = 1.3f).apply {
             setPadding(0, dp(4), 0, 0)
         })
         scoreRow.addView(scoreCopy, LinearLayout.LayoutParams(0, -2, 1f))
@@ -1085,8 +1078,8 @@ class MainActivity : Activity() {
             setPadding(0, dp(12), 0, 0)
             setOnClickListener { go("Security") }
         }
-        open.addView(VaultUi.text(this, "Open security center", 10.5f, VaultTheme.accent, 550), LinearLayout.LayoutParams(0, -2, 1f))
-        open.addView(VaultUi.icon(this, R.drawable.ic_arrow_right, VaultTheme.accent, 14))
+        open.addView(VaultUi.text(this, "Open security center", 11f, VaultTheme.accent, 550), LinearLayout.LayoutParams(0, -2, 1f))
+        open.addView(VaultUi.icon(this, R.drawable.ic_arrow_right, VaultTheme.accent, 15))
         panel.addView(open)
         root.addView(panel, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) })
 
@@ -1097,14 +1090,17 @@ class MainActivity : Activity() {
             setPadding(0, dp(4), 0, dp(9))
         }
         val sectionCopy = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        sectionCopy.addView(VaultUi.text(this, "Quick access", 17f, VaultTheme.textPrimary, 600, heading = true))
-        sectionCopy.addView(VaultUi.text(this, "Your pins, one tap away.", 10.5f, VaultTheme.textMuted, 430).apply {
+        sectionCopy.addView(VaultUi.text(this, "Quick access", 18f, VaultTheme.textPrimary, 600, heading = true))
+        sectionCopy.addView(VaultUi.text(this, "Your pins, one tap away.", 11f, VaultTheme.textMuted, 430).apply {
             setPadding(0, dp(2), 0, 0)
         })
         sectionHead.addView(sectionCopy, LinearLayout.LayoutParams(0, -2, 1f))
-        sectionHead.addView(VaultUi.text(this, "View all", 10.5f, VaultTheme.accent, 550).apply {
-            setPadding(dp(10), dp(8), 0, dp(8))
+        sectionHead.addView(VaultUi.text(this, "View all", 11f, VaultTheme.accent, 600).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(14), dp(12), 0, dp(12))
             isClickable = true
+            isFocusable = true
+            contentDescription = "View all cards"
             setOnClickListener { go("Cards") }
         })
         root.addView(sectionHead)
@@ -1114,10 +1110,64 @@ class MainActivity : Activity() {
                 chooseItemType()
             }, LinearLayout.LayoutParams(-1, -2))
         } else {
-            entries.take(3).forEach { entry ->
-                root.addView(quickRow(entry), LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+            val quickPanel = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = VaultTheme.glassShape(this@MainActivity, 14)
+            }
+            entries.take(3).forEachIndexed { index, entry ->
+                if (index > 0) quickPanel.addView(insetDivider(54))
+                quickPanel.addView(quickRow(entry), LinearLayout.LayoutParams(-1, -2))
+            }
+            root.addView(quickPanel, LinearLayout.LayoutParams(-1, -2))
+        }
+    }
+
+    private fun addRivet(host: FrameLayout, gravity: Int) {
+        host.addView(View(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.argb(64, 220, 224, 230))
+            }
+        }, FrameLayout.LayoutParams(dp(3), dp(3), gravity).apply {
+            if (gravity and Gravity.TOP != 0) topMargin = dp(11) else bottomMargin = dp(11)
+            if (gravity and Gravity.START != 0) leftMargin = dp(11) else rightMargin = dp(11)
+        })
+    }
+
+    private fun insetDivider(startDp: Int): View = View(this).apply {
+        setBackgroundColor(VaultTheme.borderFaint)
+        layoutParams = LinearLayout.LayoutParams(-1, dp(1)).apply {
+            marginStart = dp(startDp)
+            marginEnd = dp(16)
+        }
+    }
+
+    private fun ledgerRow(iconRes: Int, label: String, value: String, onClick: () -> Unit): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), 0, dp(12), 0)
+            layoutParams = LinearLayout.LayoutParams(-1, dp(54))
+            isClickable = true
+            isFocusable = true
+            contentDescription = "$label, $value"
+            background = VaultTheme.rowRipple(this@MainActivity)
+            setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                onClick()
             }
         }
+        row.addView(VaultUi.icon(this, iconRes, VaultTheme.textMuted, 17), LinearLayout.LayoutParams(dp(17), dp(17)))
+        row.addView(VaultUi.text(this, label.uppercase(), 11f, VaultTheme.textSecondary, 600, letterSpacing = 0.08f), LinearLayout.LayoutParams(0, -2, 1f).apply {
+            marginStart = dp(12)
+        })
+        row.addView(VaultUi.text(this, value, 20f, VaultTheme.accent, 500).apply {
+            typeface = VaultTheme.mono(this@MainActivity)
+        })
+        row.addView(VaultUi.icon(this, R.drawable.ic_chevron_right, VaultTheme.textFaint, 16), LinearLayout.LayoutParams(dp(16), dp(16)).apply {
+            marginStart = dp(10)
+        })
+        return row
     }
 
     private fun miniStat(value: String, label: String): LinearLayout {
@@ -1125,19 +1175,19 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        row.addView(VaultUi.icon(this, R.drawable.ic_check, VaultTheme.accentMint, 13), LinearLayout.LayoutParams(dp(20), dp(13)).apply {
+        row.addView(VaultUi.icon(this, R.drawable.ic_check, VaultTheme.accentMint, 14), LinearLayout.LayoutParams(dp(20), dp(14)).apply {
             marginEnd = dp(2)
         })
-        row.addView(VaultUi.text(this, value, 12f, VaultTheme.textPrimary, 650))
-        row.addView(VaultUi.text(this, " $label", 9.5f, VaultTheme.textMuted, 430))
+        row.addView(VaultUi.text(this, value, 13f, VaultTheme.textPrimary, 650))
+        row.addView(VaultUi.text(this, " $label", 10.5f, VaultTheme.textMuted, 430))
         return row
     }
 
     private fun statusPill(text: String, color: Int): TextView = VaultUi.text(
-        this, text, 8.5f, color, 600, letterSpacing = 0.01f
+        this, text.uppercase(), 9.5f, color, 650, letterSpacing = 0.08f
     ).apply {
         gravity = Gravity.CENTER
-        setPadding(dp(8), dp(4), dp(8), dp(4))
+        setPadding(dp(9), dp(5), dp(9), dp(5))
         background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(99).toFloat()
@@ -1158,27 +1208,27 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = VaultTheme.glassShape(this@MainActivity, 14)
-            setPadding(dp(10), dp(9), dp(10), dp(9))
+            setPadding(dp(12), dp(10), dp(10), dp(10))
+            minimumHeight = dp(62)
             isClickable = true
             isFocusable = true
             contentDescription = entry.title
+            background = VaultTheme.rowRipple(this@MainActivity)
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 openEntry(entry)
             }
-            VaultTheme.applySpringTouch(this)
         }
-        row.addView(VaultUi.articleMark(this, entry.title, kindTint(entry.kind), 38))
+        row.addView(VaultUi.articleMark(this, entry.title, kindTint(entry.kind), 40))
         val copy = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(11), 0, dp(6), 0)
+            setPadding(dp(12), 0, dp(6), 0)
         }
-        copy.addView(VaultUi.text(this, entry.title.ifBlank { "Untitled" }, 13.5f, VaultTheme.textPrimary, 550).apply {
+        copy.addView(VaultUi.text(this, entry.title.ifBlank { "Untitled" }, 14f, VaultTheme.textPrimary, 600).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        copy.addView(VaultUi.text(this, entrySubtitle(entry), 10.5f, VaultTheme.textMuted, 430).apply {
+        copy.addView(VaultUi.text(this, entrySubtitle(entry), 11f, VaultTheme.textMuted, 430).apply {
             setPadding(0, dp(2), 0, 0)
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -1187,9 +1237,9 @@ class MainActivity : Activity() {
 
         val copyValue = quickCopyValue(entry)
         if (copyValue.isNotBlank()) {
-            row.addView(VaultUi.iconButton(this, R.drawable.ic_copy, "Copy ${entry.title}", 34) {
+            row.addView(VaultUi.iconButton(this, R.drawable.ic_copy, "Copy ${entry.title}", 40) {
                 copySensitive(copyValue)
-            }, LinearLayout.LayoutParams(dp(34), dp(34)))
+            }, LinearLayout.LayoutParams(dp(40), dp(40)))
         } else {
             row.addView(VaultUi.icon(this, R.drawable.ic_chevron_right, VaultTheme.textFaint, 17))
         }
@@ -1269,9 +1319,9 @@ class MainActivity : Activity() {
                 setColor(spec.tint)
             }
         }, LinearLayout.LayoutParams(dp(5), dp(5)).apply { marginEnd = dp(6) })
-        left.addView(VaultUi.text(this, "${kindEntries.size} ${if (kindEntries.size == 1) "item" else "items"}  ·  encrypted locally", 10f, VaultTheme.textMuted, 500))
+        left.addView(VaultUi.text(this, "${kindEntries.size} ${if (kindEntries.size == 1) "item" else "items"}  ·  encrypted locally", 10.5f, VaultTheme.textMuted, 500))
         toolbar.addView(left, LinearLayout.LayoutParams(0, -2, 1f))
-        toolbar.addView(VaultUi.text(this, "Updated just now", 8.5f, VaultTheme.textFaint, 500, letterSpacing = 0.01f))
+        toolbar.addView(VaultUi.text(this, "UPDATED JUST NOW", 9f, VaultTheme.textFaint, 600, letterSpacing = 0.12f))
         root.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
 
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -1282,58 +1332,50 @@ class MainActivity : Activity() {
         val tip = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = VaultTheme.glassShape(this@MainActivity, 15)
-            setPadding(dp(13), dp(12), dp(13), dp(12))
+            setPadding(dp(2), dp(18), dp(2), 0)
         }
-        tip.addView(VaultUi.tintedBadge(this, R.drawable.ic_shield_check, VaultTheme.accentMint, 34))
-        val tipCopy = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(10), 0, 0, 0)
-        }
-        tipCopy.addView(VaultUi.text(this, "On security", 11.5f, VaultTheme.textPrimary, 550))
-        tipCopy.addView(VaultUi.text(this, "Everything stays encrypted on this device.", 9.5f, VaultTheme.textMuted, 430).apply {
-            setPadding(0, dp(2), 0, 0)
+        tip.addView(VaultUi.icon(this, R.drawable.ic_lock, VaultTheme.textFaint, 15), LinearLayout.LayoutParams(dp(15), dp(15)).apply {
+            marginEnd = dp(8)
         })
-        tip.addView(tipCopy, LinearLayout.LayoutParams(0, -2, 1f))
-        tip.addView(VaultUi.icon(this, R.drawable.ic_lock, VaultTheme.textFaint, 16))
-        root.addView(tip, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+        tip.addView(VaultUi.text(this, "Encrypted on this device. Nothing leaves the vault.", 10.5f, VaultTheme.textFaint, 450), LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(tip, LinearLayout.LayoutParams(-1, -2))
     }
 
     private fun addSearchBar(hint: String, onChanged: () -> Unit) {
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = VaultTheme.glassShape(this@MainActivity, 14)
-            setPadding(dp(13), 0, dp(6), 0)
+            background = VaultTheme.glassShape(this@MainActivity, 12)
+            setPadding(dp(14), 0, dp(7), 0)
         }
-        bar.addView(VaultUi.icon(this, R.drawable.ic_search, VaultTheme.textFaint, 17), LinearLayout.LayoutParams(dp(17), dp(17)))
+        bar.addView(VaultUi.icon(this, R.drawable.ic_search, VaultTheme.textFaint, 18), LinearLayout.LayoutParams(dp(18), dp(18)))
         val edit = EditText(this).apply {
             this.hint = hint
             setSingleLine(true)
             setTextColor(VaultTheme.textPrimary)
             setHintTextColor(VaultTheme.textFaint)
-            textSize = 13f
+            textSize = 14f
             typeface = VaultTheme.typeface(this@MainActivity, 450)
             background = null
             importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
-            setPadding(dp(9), dp(12), dp(6), dp(12))
+            setPadding(dp(10), dp(13), dp(6), dp(13))
             setText(searchQuery)
             setSelection(text.length)
         }
-        bar.addView(edit, LinearLayout.LayoutParams(0, dp(48), 1f))
+        bar.addView(edit, LinearLayout.LayoutParams(0, dp(50), 1f))
         val clear = FrameLayout(this).apply {
             background = VaultTheme.iconButtonDrawable(this@MainActivity, 9)
             contentDescription = "Clear search"
             visibility = if (searchQuery.isBlank()) View.GONE else View.VISIBLE
             isClickable = true
             isFocusable = true
-            addView(VaultUi.icon(this@MainActivity, R.drawable.ic_close, VaultTheme.textMuted, 14), FrameLayout.LayoutParams(dp(14), dp(14), Gravity.CENTER))
+            addView(VaultUi.icon(this@MainActivity, R.drawable.ic_close, VaultTheme.textMuted, 15), FrameLayout.LayoutParams(dp(15), dp(15), Gravity.CENTER))
             setOnClickListener {
                 edit.setText("")
                 edit.requestFocus()
             }
         }
-        bar.addView(clear, LinearLayout.LayoutParams(dp(30), dp(30)))
+        bar.addView(clear, LinearLayout.LayoutParams(dp(38), dp(38)))
         edit.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -1343,7 +1385,7 @@ class MainActivity : Activity() {
             }
             override fun afterTextChanged(s: Editable?) = Unit
         })
-        root.addView(bar, LinearLayout.LayoutParams(-1, dp(48)).apply { bottomMargin = dp(12) })
+        root.addView(bar, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(12) })
     }
 
     private fun matchingEntries(entries: List<VaultStore.Entry>): List<VaultStore.Entry> {
@@ -1383,26 +1425,26 @@ class MainActivity : Activity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            background = VaultTheme.glassShape(this@MainActivity, 18)
-            setPadding(dp(24), dp(24), dp(24), dp(24))
+            background = VaultTheme.glassShape(this@MainActivity, 14)
+            setPadding(dp(24), dp(26), dp(24), dp(24))
         }
         panel.addView(FrameLayout(this).apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(14).toFloat()
-                setColor(Color.argb(22, 155, 134, 255))
-                setStroke(dp(1), Color.argb(44, 155, 134, 255))
+                cornerRadius = dp(12).toFloat()
+                setColor(VaultTheme.brassWash)
+                setStroke(dp(1), VaultTheme.brassFaint)
             }
-            addView(VaultUi.icon(this@MainActivity, iconRes, VaultTheme.accent, 23), FrameLayout.LayoutParams(dp(23), dp(23), Gravity.CENTER))
-        }, LinearLayout.LayoutParams(dp(46), dp(46)))
-        panel.addView(VaultUi.text(this, title, 14.5f, VaultTheme.textPrimary, 600, heading = true, gravity = Gravity.CENTER).apply {
-            setPadding(0, dp(13), 0, 0)
+            addView(VaultUi.icon(this@MainActivity, iconRes, VaultTheme.accent, 24), FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+        }, LinearLayout.LayoutParams(dp(52), dp(52)))
+        panel.addView(VaultUi.text(this, title, 16.5f, VaultTheme.textPrimary, 600, heading = true, gravity = Gravity.CENTER).apply {
+            setPadding(0, dp(14), 0, 0)
         })
-        panel.addView(VaultUi.text(this, body, 10.5f, VaultTheme.textMuted, 430, gravity = Gravity.CENTER, lineSpacing = 1.3f).apply {
-            setPadding(dp(8), dp(5), dp(8), 0)
+        panel.addView(VaultUi.text(this, body, 11.5f, VaultTheme.textMuted, 430, gravity = Gravity.CENTER, lineSpacing = 1.3f).apply {
+            setPadding(dp(8), dp(6), dp(8), 0)
         }, LinearLayout.LayoutParams(-1, -2))
-        val cta = VaultUi.primaryButton(this, "Add new", R.drawable.ic_plus, 44) { onAdd() }
-        panel.addView(cta, LinearLayout.LayoutParams(dp(156), dp(44)).apply { topMargin = dp(14) })
+        val cta = VaultUi.primaryButton(this, "Add new", R.drawable.ic_plus, 48) { onAdd() }
+        panel.addView(cta, LinearLayout.LayoutParams(dp(168), dp(48)).apply { topMargin = dp(16) })
         return panel
     }
 
@@ -1443,23 +1485,23 @@ class MainActivity : Activity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = VaultTheme.glassShape(this@MainActivity, 16)
-            setPadding(dp(12), dp(11), dp(12), dp(11))
+            setPadding(dp(4), dp(12), dp(4), dp(12))
+            minimumHeight = dp(64)
             isClickable = true
             isFocusable = true
             contentDescription = "${entry.title}. Tap for details."
+            background = VaultTheme.rowRipple(this@MainActivity)
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 toggle()
             }
-            VaultTheme.applySpringTouch(this)
         }
-        card.addView(VaultUi.articleMark(this, entry.title, kindTint(entry.kind), 40))
+        card.addView(VaultUi.articleMark(this, entry.title, kindTint(entry.kind), 42))
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(11), 0, dp(6), 0)
+            setPadding(dp(12), 0, dp(6), 0)
         }
-        info.addView(VaultUi.text(this, entry.title.ifBlank { "Untitled" }, 14f, VaultTheme.textPrimary, 600).apply {
+        info.addView(VaultUi.text(this, entry.title.ifBlank { "Untitled" }, 14.5f, VaultTheme.textPrimary, 600).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         })
@@ -1468,14 +1510,14 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(3), 0, 0)
         }
-        subRow.addView(VaultUi.text(this, entrySubtitle(entry), 10.5f, VaultTheme.textMuted, 430).apply {
+        subRow.addView(VaultUi.text(this, entrySubtitle(entry), 11.5f, VaultTheme.textMuted, 430).apply {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }, LinearLayout.LayoutParams(0, -2, 1f))
         if (entry.kind == "Password" && entry.secret.isNotBlank()) {
             val (label, color) = SecurityAudit.getStrengthLabel(entry.secret)
-            subRow.addView(VaultUi.text(this, label, 8.5f, color, 600, letterSpacing = 0.01f).apply {
-                setPadding(dp(6), dp(2), dp(6), dp(2))
+            subRow.addView(VaultUi.text(this, label.uppercase(), 9.5f, color, 650, letterSpacing = 0.08f).apply {
+                setPadding(dp(7), dp(3), dp(7), dp(3))
                 background = GradientDrawable().apply {
                     cornerRadius = dp(99).toFloat()
                     setColor(Color.argb(20, Color.red(color), Color.green(color), Color.blue(color)))
@@ -1488,18 +1530,16 @@ class MainActivity : Activity() {
         card.addView(VaultUi.icon(
             this,
             if (expanded) R.drawable.ic_chevron_down else R.drawable.ic_chevron_right,
-            VaultTheme.textFaint, 17
-        ), LinearLayout.LayoutParams(dp(17), dp(17)).apply { marginStart = dp(4) })
-        host.addView(card, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(6)
-            bottomMargin = if (expanded) dp(0) else dp(8)
-        })
+            VaultTheme.textFaint, 18
+        ), LinearLayout.LayoutParams(dp(18), dp(18)).apply { marginStart = dp(4) })
+        host.addView(card, LinearLayout.LayoutParams(-1, -2))
         if (expanded) {
             host.addView(detailsPanel(entry, entries), LinearLayout.LayoutParams(-1, -2).apply {
-                topMargin = dp(8)
+                topMargin = dp(6)
                 bottomMargin = dp(10)
             })
         }
+        host.addView(insetDivider(58))
     }
 
     private fun toggleExpanded(id: String) {
@@ -1510,12 +1550,17 @@ class MainActivity : Activity() {
     private fun detailsPanel(entry: VaultStore.Entry, entries: MutableList<VaultStore.Entry>): LinearLayout {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = VaultTheme.glassShape(this@MainActivity, 16, strong = true)
-            setPadding(dp(14), dp(13), dp(14), dp(13))
+            background = VaultTheme.glassShape(this@MainActivity, 12, strong = true)
+            setPadding(dp(14), dp(14), dp(14), dp(12))
         }
-        panel.addView(VaultUi.text(this, "Stored details", 8.5f, VaultTheme.textFaint, 500, letterSpacing = 0.01f).apply {
-            setPadding(dp(2), 0, 0, dp(4))
-        })
+        val head = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(2), 0, 0, dp(6))
+        }
+        head.addView(VaultUi.text(this, "STORED DETAILS", 9.5f, VaultTheme.textFaint, 600, letterSpacing = 0.16f), LinearLayout.LayoutParams(0, -2, 1f))
+        head.addView(VaultUi.text(this, "LOCAL", 8.5f, VaultTheme.accent, 650, letterSpacing = 0.14f))
+        panel.addView(head)
         val fields = copyableFields(entry)
         fields.forEachIndexed { index, (_, title, value) ->
             addCopyableField(panel, entry, title, value)
@@ -1533,33 +1578,33 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(7), 0, dp(7))
+            setPadding(0, dp(8), 0, dp(8))
         }
         val textCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        textCol.addView(VaultUi.text(this, title, 9f, VaultTheme.textFaint, 500, letterSpacing = 0.01f))
-        val valueText = VaultUi.text(this, if (secret) "••••••••" else value, 12.5f, VaultTheme.textPrimary, 450, lineSpacing = 1.3f).apply {
-            if (secret) typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
-            setPadding(0, dp(3), 0, 0)
+        textCol.addView(VaultUi.text(this, title.uppercase(), 9.5f, VaultTheme.textFaint, 600, letterSpacing = 0.12f))
+        val valueText = VaultUi.text(this, if (secret) "••••••••" else value, 13.5f, VaultTheme.textPrimary, 450, lineSpacing = 1.3f).apply {
+            if (secret) typeface = VaultTheme.mono(this@MainActivity)
+            setPadding(0, dp(4), 0, 0)
         }
         textCol.addView(valueText)
         row.addView(textCol, LinearLayout.LayoutParams(0, -2, 1f))
 
         if (secret) {
             var revealed = false
-            val eye = VaultUi.iconButton(this, R.drawable.ic_eye, "Show $title", 32) {
+            val eye = VaultUi.iconButton(this, R.drawable.ic_eye, "Show $title", 40) {
                 revealed = !revealed
                 valueText.text = if (revealed) value else "••••••••"
                 val image = it.getChildAt(0) as ImageView
                 image.setImageResource(if (revealed) R.drawable.ic_eye_off else R.drawable.ic_eye)
                 it.contentDescription = if (revealed) "Hide $title" else "Show $title"
             }
-            row.addView(eye, LinearLayout.LayoutParams(dp(32), dp(32)).apply { marginEnd = dp(6) })
+            row.addView(eye, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginEnd = dp(6) })
         }
 
-        val copy = VaultUi.iconButton(this, R.drawable.ic_copy, "Copy $title", 32) {
+        val copy = VaultUi.iconButton(this, R.drawable.ic_copy, "Copy $title", 40) {
             copyFieldValue(title, value)
         }
-        row.addView(copy, LinearLayout.LayoutParams(dp(32), dp(32)))
+        row.addView(copy, LinearLayout.LayoutParams(dp(40), dp(40)))
         container.addView(row)
     }
 
@@ -1591,10 +1636,10 @@ class MainActivity : Activity() {
                     onClick()
                 }
                 VaultTheme.applySpringTouch(this)
-                addView(VaultUi.icon(this@MainActivity, iconRes, tint, 14), LinearLayout.LayoutParams(dp(14), dp(14)).apply { marginEnd = dp(5) })
-                addView(VaultUi.text(this@MainActivity, label, 10.5f, tint, 550))
+                addView(VaultUi.icon(this@MainActivity, iconRes, tint, 15), LinearLayout.LayoutParams(dp(15), dp(15)).apply { marginEnd = dp(5) })
+                addView(VaultUi.text(this@MainActivity, label, 11.5f, tint, 600))
             }
-            row.addView(button, LinearLayout.LayoutParams(0, dp(40), 1f).apply { marginEnd = dp(6) })
+            row.addView(button, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) })
         }
         action("Share", R.drawable.ic_share, VaultTheme.textSecondary) { shareEntry(entry) }
         action("Edit", R.drawable.ic_edit, VaultTheme.textSecondary) { editEntry(entry) }
@@ -1624,24 +1669,16 @@ class MainActivity : Activity() {
         val summary = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = VaultTheme.glassShape(this@MainActivity, 18, strong = true)
+            background = VaultTheme.glassShape(this@MainActivity, 14, strong = true)
             setPadding(dp(14), dp(14), dp(14), dp(14))
         }
-        summary.addView(FrameLayout(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(13).toFloat()
-                setColor(VaultTheme.surfaceElevated)
-                setStroke(dp(1), VaultTheme.border)
-            }
-            addView(VaultUi.icon(this@MainActivity, R.drawable.ic_shield_check, VaultTheme.accent, 21), FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))
-        }, LinearLayout.LayoutParams(dp(45), dp(45)))
+        summary.addView(VaultUi.vaultDoor(this, 46), LinearLayout.LayoutParams(dp(46), dp(46)))
         val summaryCopy = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(11), 0, dp(8), 0)
+            setPadding(dp(12), 0, dp(8), 0)
         }
-        summaryCopy.addView(VaultUi.text(this, "Aura local vault", 13.5f, VaultTheme.textPrimary, 600))
-        summaryCopy.addView(VaultUi.text(this, "AES-256-GCM  ·  no cloud  ·  no network", 9.5f, VaultTheme.textMuted, 430).apply {
+        summaryCopy.addView(VaultUi.text(this, "Aura local vault", 14f, VaultTheme.textPrimary, 600, heading = true))
+        summaryCopy.addView(VaultUi.text(this, "AES-256-GCM  ·  no cloud  ·  no network", 10.5f, VaultTheme.textMuted, 430).apply {
             setPadding(0, dp(3), 0, 0)
         })
         summary.addView(summaryCopy, LinearLayout.LayoutParams(0, -2, 1f))
@@ -1650,65 +1687,83 @@ class MainActivity : Activity() {
 
         sectionLabel("Security")
         val biometricOn = VaultStore.biometricPayload(this) != null
-        settingsRow(
-            R.drawable.ic_shield_check, VaultTheme.accentMint,
-            "Security center", "Review your vault health and recommendations",
-            "Open"
-        ) { go("Security") }
-        settingsRow(
-            R.drawable.ic_fingerprint, VaultTheme.accent,
-            "Fingerprint unlock", "Unlock with a strong biometric instead of typing",
-            if (biometricOn) "On" else "Off"
-        ) {
-            if (biometricOn) {
-                confirm("Disable fingerprint?", "You will unlock with your master password.", "Disable") {
-                    VaultStore.clearBiometric(this)
-                    render()
-                }
-            } else {
-                enableBiometric()
-            }
-        }
-        settingsRow(
-            R.drawable.ic_key, VaultTheme.accentAmber,
-            "Recovery key", "Replace the emergency key used to reset your password",
-            "Rotate"
-        ) {
-            confirm("Replace recovery key?", "Your current recovery key will stop working immediately.", "Create new key") {
-                val current = session
-                if (current == null) {
-                    message("Vault is locked. Unlock to rotate the recovery key.")
-                    return@confirm
-                }
-                runCatching { VaultStore.rotateRecoveryKey(this, current.dek) }
-                    .onSuccess {
-                        recoveryToShow = it
+        root.addView(settingsGroup(listOf(
+            settingsRow(
+                R.drawable.ic_shield_check, VaultTheme.accentMint,
+                "Security center", "Review your vault health and recommendations",
+                "Open"
+            ) { go("Security") },
+            settingsRow(
+                R.drawable.ic_fingerprint, VaultTheme.accent,
+                "Fingerprint unlock", "Unlock with a strong biometric instead of typing",
+                if (biometricOn) "On" else "Off"
+            ) {
+                if (biometricOn) {
+                    confirm("Disable fingerprint?", "You will unlock with your master password.", "Disable") {
+                        VaultStore.clearBiometric(this)
                         render()
                     }
-                    .onFailure { message("Failed to create new key.") }
-            }
-        }
-        settingsRow(
-            R.drawable.ic_lock, VaultTheme.accentRose,
-            "Lock vault", "Close the session and clear sensitive clipboard data",
-            "Lock"
-        ) { lockNow() }
+                } else {
+                    enableBiometric()
+                }
+            },
+            settingsRow(
+                R.drawable.ic_key, VaultTheme.accentAmber,
+                "Recovery key", "Replace the emergency key used to reset your password",
+                "Rotate"
+            ) {
+                confirm("Replace recovery key?", "Your current recovery key will stop working immediately.", "Create new key") {
+                    val current = session
+                    if (current == null) {
+                        message("Vault is locked. Unlock to rotate the recovery key.")
+                        return@confirm
+                    }
+                    runCatching { VaultStore.rotateRecoveryKey(this, current.dek) }
+                        .onSuccess {
+                            recoveryToShow = it
+                            render()
+                        }
+                        .onFailure { message("Failed to create new key.") }
+                }
+            },
+            settingsRow(
+                R.drawable.ic_lock, VaultTheme.accentRose,
+                "Lock vault", "Close the session and clear sensitive clipboard data",
+                "Lock"
+            ) { lockNow() }
+        )), LinearLayout.LayoutParams(-1, -2))
 
         sectionLabel("Privacy")
-        infoRow(R.drawable.ic_image, VaultTheme.accentBlue, "Screenshots", "Screen capture and recent-app previews", "Blocked")
-        infoRow(R.drawable.ic_globe, VaultTheme.accentMint, "Network access", "The app has no internet permission", "None")
-        infoRow(R.drawable.ic_copy, VaultTheme.accentAmber, "Clipboard", "Sensitive values are cleared automatically", "30 sec")
-        infoRow(R.drawable.ic_lock, VaultTheme.textSecondary, "Auto-lock", "The vault locks after inactivity", "1 min")
+        root.addView(settingsGroup(listOf(
+            infoRow(R.drawable.ic_image, VaultTheme.accentBlue, "Screenshots", "Screen capture and recent-app previews", if (BuildConfig.DEBUG) "Debug" else "Blocked"),
+            infoRow(R.drawable.ic_globe, VaultTheme.accentMint, "Network access", "The app has no internet permission", "None"),
+            infoRow(R.drawable.ic_copy, VaultTheme.accentAmber, "Clipboard", "Sensitive values are cleared automatically", "30 sec"),
+            infoRow(R.drawable.ic_lock, VaultTheme.textSecondary, "Auto-lock", "The vault locks after inactivity", "1 min")
+        )), LinearLayout.LayoutParams(-1, -2))
 
         sectionLabel("About")
-        infoRow(R.drawable.ic_sparkles, VaultTheme.accent, "Aura Vault", "Local-only encrypted vault.", "v0.1.0")
-        infoRow(R.drawable.ic_info, VaultTheme.textMuted, "Prototype notice", "Review the security model before real use", "")
+        root.addView(settingsGroup(listOf(
+            infoRow(R.drawable.ic_sparkles, VaultTheme.accent, "Aura Vault", "Local-only encrypted vault.", "v0.2.3"),
+            infoRow(R.drawable.ic_info, VaultTheme.textMuted, "Prototype notice", "Review the security model before real use", "")
+        )), LinearLayout.LayoutParams(-1, -2))
 
         root.addView(VaultUi.text(
             this,
             "This is an offline prototype. It has not been independently security-reviewed. Keep using dummy details until device-level checks are complete.",
-            9.5f, VaultTheme.textFaint, 430, gravity = Gravity.CENTER, lineSpacing = 1.35f
-        ).apply { setPadding(dp(6), dp(14), dp(6), 0) }, LinearLayout.LayoutParams(-1, -2))
+            10.5f, VaultTheme.textFaint, 430, gravity = Gravity.CENTER, lineSpacing = 1.35f
+        ).apply { setPadding(dp(6), dp(16), dp(6), 0) }, LinearLayout.LayoutParams(-1, -2))
+    }
+
+    private fun settingsGroup(rows: List<View>): LinearLayout {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = VaultTheme.glassShape(this@MainActivity, 14)
+        }
+        rows.forEachIndexed { index, row ->
+            if (index > 0) panel.addView(insetDivider(58))
+            panel.addView(row, LinearLayout.LayoutParams(-1, -2))
+        }
+        return panel
     }
 
     private fun settingsRow(
@@ -1718,59 +1773,59 @@ class MainActivity : Activity() {
         detail: String,
         actionLabel: String,
         onClick: () -> Unit
-    ) {
+    ): LinearLayout {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = VaultTheme.glassShape(this@MainActivity, 15)
-            setPadding(dp(11), dp(10), dp(11), dp(10))
+            setPadding(dp(12), dp(11), dp(12), dp(11))
+            minimumHeight = dp(68)
             isClickable = true
             isFocusable = true
             contentDescription = "$title. $actionLabel"
+            background = VaultTheme.rowRipple(this@MainActivity)
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 onClick()
             }
-            VaultTheme.applySpringTouch(this)
         }
-        row.addView(VaultUi.tintedBadge(this, iconRes, tint, 34))
+        row.addView(VaultUi.tintedBadge(this, iconRes, tint, 36))
         val copy = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(10), 0, dp(8), 0)
+            setPadding(dp(11), 0, dp(8), 0)
         }
-        copy.addView(VaultUi.text(this, title, 12.5f, VaultTheme.textPrimary, 550))
-        copy.addView(VaultUi.text(this, detail, 9.5f, VaultTheme.textFaint, 430, lineSpacing = 1.25f).apply {
+        copy.addView(VaultUi.text(this, title, 13.5f, VaultTheme.textPrimary, 600))
+        copy.addView(VaultUi.text(this, detail, 10.5f, VaultTheme.textFaint, 430, lineSpacing = 1.25f).apply {
             setPadding(0, dp(2), 0, 0)
         })
         row.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(VaultUi.text(this, actionLabel, 9.5f, VaultTheme.accent, 650).apply {
-            setPadding(dp(7), dp(4), dp(7), dp(4))
+        row.addView(VaultUi.text(this, actionLabel.uppercase(), 9.5f, VaultTheme.accent, 650, letterSpacing = 0.08f).apply {
+            setPadding(dp(9), dp(5), dp(9), dp(5))
             background = VaultTheme.pillDrawable(this@MainActivity, true)
         })
-        root.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        return row
     }
 
-    private fun infoRow(iconRes: Int, tint: Int, title: String, detail: String, value: String) {
+    private fun infoRow(iconRes: Int, tint: Int, title: String, detail: String, value: String): LinearLayout {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = VaultTheme.glassShape(this@MainActivity, 15)
-            setPadding(dp(11), dp(10), dp(11), dp(10))
+            setPadding(dp(12), dp(11), dp(12), dp(11))
+            minimumHeight = dp(64)
         }
-        row.addView(VaultUi.tintedBadge(this, iconRes, tint, 34))
+        row.addView(VaultUi.tintedBadge(this, iconRes, tint, 36))
         val copy = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(10), 0, dp(8), 0)
+            setPadding(dp(11), 0, dp(8), 0)
         }
-        copy.addView(VaultUi.text(this, title, 12.5f, VaultTheme.textPrimary, 550))
-        copy.addView(VaultUi.text(this, detail, 9.5f, VaultTheme.textFaint, 430, lineSpacing = 1.25f).apply {
+        copy.addView(VaultUi.text(this, title, 13.5f, VaultTheme.textPrimary, 600))
+        copy.addView(VaultUi.text(this, detail, 10.5f, VaultTheme.textFaint, 430, lineSpacing = 1.25f).apply {
             setPadding(0, dp(2), 0, 0)
         })
         row.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
         if (value.isNotBlank()) {
-            row.addView(VaultUi.text(this, value, 9.5f, VaultTheme.textMuted, 600))
+            row.addView(VaultUi.text(this, value.uppercase(), 9.5f, VaultTheme.textMuted, 650, letterSpacing = 0.08f))
         }
-        root.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        return row
     }
 
     private fun showSecurityCenter(entries: MutableList<VaultStore.Entry>) {
@@ -1793,48 +1848,71 @@ class MainActivity : Activity() {
         kicker.addView(VaultUi.icon(this, R.drawable.ic_shield_check, VaultTheme.accentMint, 14), LinearLayout.LayoutParams(dp(14), dp(14)).apply {
             marginEnd = dp(6)
         })
-        kicker.addView(VaultUi.text(this, "Security picture", 8.5f, VaultTheme.textMuted, 500, letterSpacing = 0.01f))
+        kicker.addView(VaultUi.text(this, "SECURITY PICTURE", 9.5f, VaultTheme.textMuted, 600, letterSpacing = 0.14f))
         copy.addView(kicker)
-        copy.addView(VaultUi.text(this, "A strong foundation", 20f, VaultTheme.textPrimary, 600, heading = true).apply {
+        copy.addView(VaultUi.text(this, "A strong foundation", 22f, VaultTheme.textPrimary, 600, heading = true).apply {
             setPadding(0, dp(10), 0, 0)
         })
-        copy.addView(VaultUi.text(this, "with room to tighten.", 20f, VaultTheme.accent, 600, heading = true, lineSpacing = 1.06f).apply {
-            setPadding(0, 0, 0, dp(8))
+        copy.addView(VaultUi.text(this, "with room to tighten.", 22f, VaultTheme.accent, 600, heading = true, lineSpacing = 1.06f).apply {
+            setPadding(0, 0, 0, dp(9))
         })
-        copy.addView(VaultUi.text(this, "Your vault is encrypted, on-device, and looking healthy.", 10.5f, VaultTheme.textMuted, 430, lineSpacing = 1.3f))
-        copy.addView(statusPill(audit.statusText, color), LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(12) })
+        copy.addView(VaultUi.text(this, "Your vault is encrypted, on-device, and looking healthy.", 11.5f, VaultTheme.textMuted, 430, lineSpacing = 1.32f))
+        copy.addView(statusPill(audit.statusText, color), LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(13) })
         hero.addView(copy)
-        hero.addView(VaultUi.scoreRing(this, audit.score, 118, "score"), FrameLayout.LayoutParams(dp(118), dp(118), Gravity.END or Gravity.CENTER_VERTICAL).apply {
+        hero.addView(VaultUi.scoreRing(this, audit.score, 122, "score"), FrameLayout.LayoutParams(dp(122), dp(122), Gravity.END or Gravity.CENTER_VERTICAL).apply {
             rightMargin = dp(14)
         })
-        root.addView(hero, LinearLayout.LayoutParams(-1, dp(238)).apply { bottomMargin = dp(10) })
+        root.addView(hero, LinearLayout.LayoutParams(-1, dp(236)).apply { bottomMargin = dp(12) })
 
-        fun metricRow(first: View, second: View) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, 0, 0, dp(8))
+        val metrics = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = VaultTheme.glassShape(this@MainActivity, 18, strong = true)
+        }
+        val metricsHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(15), dp(13), dp(15), dp(9))
+        }
+        metricsHeader.addView(
+            VaultUi.text(this, "Vault health", 16.5f, VaultTheme.textPrimary, 600, heading = true),
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+        metricsHeader.addView(VaultUi.text(this, "4 SIGNALS", 9f, VaultTheme.textFaint, 600, letterSpacing = 0.14f))
+        metrics.addView(metricsHeader, LinearLayout.LayoutParams(-1, -2))
+        metrics.addView(VaultUi.divider(this), LinearLayout.LayoutParams(-1, dp(1)).apply {
+            setMargins(dp(15), 0, dp(15), 0)
+        })
+
+        fun metricRow(first: View, second: View, dividerAbove: Boolean) {
+            if (dividerAbove) {
+                metrics.addView(VaultUi.divider(this), LinearLayout.LayoutParams(-1, dp(1)).apply {
+                    setMargins(dp(15), 0, dp(15), 0)
+                })
             }
-            row.addView(first, LinearLayout.LayoutParams(0, dp(138), 1f).apply { marginEnd = dp(8) })
-            row.addView(second, LinearLayout.LayoutParams(0, dp(138), 1f))
-            root.addView(row)
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            row.addView(first, LinearLayout.LayoutParams(0, dp(112), 1f))
+            row.addView(View(this).apply { setBackgroundColor(VaultTheme.borderFaint) }, LinearLayout.LayoutParams(dp(1), -1).apply {
+                setMargins(0, dp(14), 0, dp(14))
+            })
+            row.addView(second, LinearLayout.LayoutParams(0, dp(112), 1f))
+            metrics.addView(row, LinearLayout.LayoutParams(-1, dp(112)))
         }
         val biometricOn = VaultStore.biometricPayload(this) != null
-        metricRow(
-            VaultUi.statTile(this, R.drawable.ic_key, if (audit.weakPasswordsCount == 0) VaultTheme.accentMint else VaultTheme.warning, "Weak passwords", audit.weakPasswordsCount.toString(), if (audit.weakPasswordsCount == 0) "Everything is strong" else "Review these soon") {},
-            VaultUi.statTile(this, R.drawable.ic_copy, if (audit.reusedPasswordsCount == 0) VaultTheme.accentBlue else VaultTheme.warning, "Reused passwords", audit.reusedPasswordsCount.toString(), if (audit.reusedPasswordsCount == 0) "Every password is unique" else "Use unique credentials") {}
-        )
-        metricRow(
-            VaultUi.statTile(this, R.drawable.ic_card, if (audit.expiringCardsCount == 0) VaultTheme.accent else VaultTheme.warning, "Expiring cards", audit.expiringCardsCount.toString(), if (audit.expiringCardsCount == 0) "No cards need attention" else "Check your cards") {},
-            VaultUi.statTile(this, R.drawable.ic_fingerprint, VaultTheme.accentRose, "Biometric unlock", if (biometricOn) "On" else "Off", if (biometricOn) "Last used today" else "Master password only") { openSettings() }
-        )
+        val weakCell = VaultUi.statTile(this, R.drawable.ic_key, if (audit.weakPasswordsCount == 0) VaultTheme.accentMint else VaultTheme.warning, "Weak passwords", audit.weakPasswordsCount.toString(), if (audit.weakPasswordsCount == 0) "Everything is strong" else "Review these soon") {}
+        val reusedCell = VaultUi.statTile(this, R.drawable.ic_copy, if (audit.reusedPasswordsCount == 0) VaultTheme.accentBlue else VaultTheme.warning, "Reused passwords", audit.reusedPasswordsCount.toString(), if (audit.reusedPasswordsCount == 0) "Every password is unique" else "Use unique credentials") {}
+        val expiringCell = VaultUi.statTile(this, R.drawable.ic_card, if (audit.expiringCardsCount == 0) VaultTheme.accent else VaultTheme.warning, "Expiring cards", audit.expiringCardsCount.toString(), if (audit.expiringCardsCount == 0) "No cards need attention" else "Check your cards") {}
+        val biometricCell = VaultUi.statTile(this, R.drawable.ic_fingerprint, VaultTheme.accentRose, "Biometric unlock", if (biometricOn) "ON" else "OFF", if (biometricOn) "Last used today" else "Master password only") { openSettings() }
+        metricRow(weakCell, reusedCell, dividerAbove = false)
+        metricRow(expiringCell, biometricCell, dividerAbove = true)
+        root.addView(metrics, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
 
         val recommendations = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = VaultTheme.glassShape(this@MainActivity, 18, strong = true)
             setPadding(dp(15), dp(14), dp(15), dp(14))
         }
-        recommendations.addView(VaultUi.text(this, "Recommendations", 15.5f, VaultTheme.textPrimary, 600, heading = true))
-        recommendations.addView(VaultUi.text(this, "Fix these when you have a moment.", 10f, VaultTheme.textMuted, 430).apply {
+        recommendations.addView(VaultUi.text(this, "Recommendations", 16.5f, VaultTheme.textPrimary, 600, heading = true))
+        recommendations.addView(VaultUi.text(this, "Fix these when you have a moment.", 11f, VaultTheme.textMuted, 430).apply {
             setPadding(0, dp(3), 0, dp(10))
         })
         if (audit.recommendations.isEmpty()) {
@@ -1844,7 +1922,7 @@ class MainActivity : Activity() {
                 setPadding(0, dp(5), 0, dp(3))
             }
             clear.addView(VaultUi.tintedBadge(this, R.drawable.ic_check, VaultTheme.accentMint, 32))
-            clear.addView(VaultUi.text(this, "Nothing needs attention right now.", 10.5f, VaultTheme.textSecondary, 450).apply {
+            clear.addView(VaultUi.text(this, "Nothing needs attention right now.", 11.5f, VaultTheme.textSecondary, 450).apply {
                 setPadding(dp(9), 0, 0, 0)
             })
             recommendations.addView(clear)
@@ -1856,7 +1934,7 @@ class MainActivity : Activity() {
                     setPadding(0, dp(6), 0, dp(6))
                 }
                 line.addView(VaultUi.tintedBadge(this, R.drawable.ic_info, VaultTheme.warning, 30))
-                line.addView(VaultUi.text(this, rec.replaceFirstChar { it.uppercase() }, 10.5f, VaultTheme.textSecondary, 450).apply {
+                line.addView(VaultUi.text(this, rec.replaceFirstChar { it.uppercase() }, 11.5f, VaultTheme.textSecondary, 450).apply {
                     setPadding(dp(9), 0, 0, 0)
                 }, LinearLayout.LayoutParams(0, -2, 1f))
                 line.addView(VaultUi.icon(this, R.drawable.ic_chevron_right, VaultTheme.textFaint, 15))
@@ -1870,7 +1948,7 @@ class MainActivity : Activity() {
             background = VaultTheme.glassShape(this@MainActivity, 18)
             setPadding(dp(15), dp(14), dp(15), dp(8))
         }
-        protection.addView(VaultUi.text(this, "Local protection", 15f, VaultTheme.textPrimary, 600, heading = true).apply {
+        protection.addView(VaultUi.text(this, "Local protection", 16.5f, VaultTheme.textPrimary, 600, heading = true).apply {
             setPadding(0, 0, 0, dp(7))
         })
         listOf(
@@ -1887,7 +1965,7 @@ class MainActivity : Activity() {
             }
             line.addView(VaultUi.icon(this, R.drawable.ic_check, VaultTheme.accentMint, 13), LinearLayout.LayoutParams(dp(20), dp(13)))
             line.addView(VaultUi.icon(this, icon, VaultTheme.textFaint, 14), LinearLayout.LayoutParams(dp(22), dp(14)))
-            line.addView(VaultUi.text(this, label, 10.5f, VaultTheme.textSecondary, 450))
+            line.addView(VaultUi.text(this, label, 11.5f, VaultTheme.textSecondary, 450))
             protection.addView(line)
         }
         root.addView(protection, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
@@ -1931,8 +2009,8 @@ class MainActivity : Activity() {
         val secret = if (kind == "Password") field("Password", "Enter a strong password", true, editing?.secret.orEmpty()) else null
 
         if (kind == "Password") {
-            val strength = VaultUi.text(this, "Strength  ·  waiting", 9.5f, VaultTheme.textFaint, 500)
-            strength.setPadding(dp(2), 0, 0, dp(8))
+            val strength = VaultUi.text(this, "Strength  ·  waiting", 10.5f, VaultTheme.textFaint, 500)
+            strength.setPadding(dp(2), 0, 0, dp(9))
             formContent.addView(strength)
             secret?.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -1948,13 +2026,13 @@ class MainActivity : Activity() {
                 }
                 override fun afterTextChanged(s: Editable?) = Unit
             })
-            val generate = VaultUi.secondaryButton(this, "Generate strong password", R.drawable.ic_sparkles, 42) {
+            val generate = VaultUi.secondaryButton(this, "Generate strong password", R.drawable.ic_sparkles, 46) {
                 val alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#\$%&*_-+=?"
                 val random = java.security.SecureRandom()
                 secret?.setText((1..20).map { alphabet[random.nextInt(alphabet.length)] }.joinToString(""))
                 secret?.setSelection(secret.text.length)
             }
-            formContent.addView(generate, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(12) })
+            formContent.addView(generate, LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(12) })
         }
 
         val number = if (kind == "Card") field("Card number", "0000 0000 0000 0000", initialValue = prefill?.number ?: editing?.cardNumber.orEmpty()) else null
@@ -1984,7 +2062,7 @@ class MainActivity : Activity() {
                 if (custom.containsKey(key)) return
                 custom[key] = field(key, "", isSecretLabel(key), editing?.customFields?.get(key).orEmpty())
             }
-            val create = VaultUi.secondaryButton(this, "Add fields", R.drawable.ic_plus, 42) {
+            val create = VaultUi.secondaryButton(this, "Add fields", R.drawable.ic_plus, 46) {
                 val names = keysInput.text.toString().split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
                 if (names.isEmpty()) {
                     message("Enter at least one field name.")
@@ -1992,7 +2070,7 @@ class MainActivity : Activity() {
                     names.forEach(::addCustomField)
                 }
             }
-            formContent.addView(create, LinearLayout.LayoutParams(-1, dp(42)).apply { bottomMargin = dp(12) })
+            formContent.addView(create, LinearLayout.LayoutParams(-1, dp(46)).apply { bottomMargin = dp(12) })
             editing?.customFields?.keys?.forEach(::addCustomField)
         }
 
@@ -2059,7 +2137,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                setColor(VaultTheme.surface)
+                setColor(VaultTheme.surfaceElevated)
                 cornerRadii = floatArrayOf(
                     dp(26).toFloat(), dp(26).toFloat(),
                     dp(26).toFloat(), dp(26).toFloat(),
@@ -2078,7 +2156,11 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(dp(38), dp(4)).apply {
             gravity = Gravity.CENTER_HORIZONTAL
             topMargin = dp(3)
-            bottomMargin = dp(15)
+            bottomMargin = dp(13)
+        })
+        panel.addView(VaultUi.brassRule(this, 32), LinearLayout.LayoutParams(dp(32), dp(1)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            bottomMargin = dp(13)
         })
 
         val header = LinearLayout(this).apply {
@@ -2089,12 +2171,12 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 0, dp(8), 0)
         }
-        headerCopy.addView(VaultUi.text(this, eyebrow, 9.5f, VaultTheme.textMuted, 500, letterSpacing = 0.01f))
-        headerCopy.addView(VaultUi.text(this, title, 21f, VaultTheme.textPrimary, 600, heading = true).apply {
-            setPadding(0, dp(4), 0, 0)
+        headerCopy.addView(VaultUi.text(this, eyebrow.uppercase(), 10f, VaultTheme.accent, 600, letterSpacing = 0.16f))
+        headerCopy.addView(VaultUi.text(this, title, 22f, VaultTheme.textPrimary, 600, heading = true).apply {
+            setPadding(0, dp(5), 0, 0)
         })
         header.addView(headerCopy, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(VaultUi.iconButton(this, R.drawable.ic_close, "Close", 34) { dialog.dismiss() })
+        header.addView(VaultUi.iconButton(this, R.drawable.ic_close, "Close", 44) { dialog.dismiss() })
         panel.addView(header, LinearLayout.LayoutParams(-1, -2))
 
         val scroll = ScrollView(this).apply {
@@ -2102,18 +2184,19 @@ class MainActivity : Activity() {
             clipToPadding = false
             addView(content, FrameLayout.LayoutParams(-1, -2))
         }
-        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(14) })
 
+        panel.addView(VaultUi.divider(this), LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(12) })
         val footer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(10), 0, 0)
+            setPadding(0, dp(12), 0, 0)
         }
-        val cancel = VaultUi.secondaryButton(this, "Cancel", null, 46) { dialog.dismiss() }
-        footer.addView(cancel, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginEnd = dp(8) })
-        val submit = VaultUi.primaryButton(this, submitLabel, null, 46) {
+        val cancel = VaultUi.secondaryButton(this, "Cancel", null, 50) { dialog.dismiss() }
+        footer.addView(cancel, LinearLayout.LayoutParams(0, dp(50), 1f).apply { marginEnd = dp(8) })
+        val submit = VaultUi.primaryButton(this, submitLabel, null, 50) {
             if (onSubmit()) dialog.dismiss()
         }
-        footer.addView(submit, LinearLayout.LayoutParams(0, dp(46), 1f))
+        footer.addView(submit, LinearLayout.LayoutParams(0, dp(50), 1f))
         panel.addView(footer, LinearLayout.LayoutParams(-1, -2))
 
         dialog.setContentView(panel, ViewGroup.LayoutParams(-1, -1))
@@ -2149,7 +2232,7 @@ class MainActivity : Activity() {
         }
         activeDialog = dialog
         dialog.show()
-        val height = min((resources.displayMetrics.heightPixels * 0.88f).toInt(), dp(760))
+        val height = min((resources.displayMetrics.heightPixels * 0.9f).toInt(), dp(780))
         dialog.window?.setLayout(WindowManager.LayoutParams.MATCH_PARENT, height)
         return dialog
     }
@@ -2223,32 +2306,78 @@ class MainActivity : Activity() {
         })
     }
 
-    private fun confirm(title: String, message: String, positive: String, onConfirm: () -> Unit) {
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(title)
-            .setMessage(message)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton(positive) { _, _ -> onConfirm() }
-            .create()
+    private fun confirm(title: String, message: String, positive: String, danger: Boolean = false, onConfirm: () -> Unit) {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                setColor(VaultTheme.surfaceElevated)
+                cornerRadius = dp(24).toFloat()
+                setStroke(dp(1), VaultTheme.borderStrong)
+            }
+            setPadding(dp(22), dp(22), dp(22), dp(18))
+        }
+        panel.addView(VaultUi.brassRule(this, 36), LinearLayout.LayoutParams(dp(36), dp(1)).apply {
+            bottomMargin = dp(14)
+        })
+        panel.addView(VaultUi.text(this, "PLEASE CONFIRM", 9.5f, VaultTheme.textMuted, 600, letterSpacing = 0.14f))
+        panel.addView(VaultUi.text(this, title, 21f, VaultTheme.textPrimary, 600, heading = true).apply {
+            setPadding(0, dp(5), 0, 0)
+        })
+        panel.addView(VaultUi.text(this, message, 13f, VaultTheme.textMuted, 430, lineSpacing = 1.35f).apply {
+            setPadding(0, dp(9), 0, dp(20))
+        })
+
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        actions.addView(VaultUi.secondaryButton(this, "Cancel", null, 50) { dialog.dismiss() },
+            LinearLayout.LayoutParams(0, dp(50), 1f).apply { marginEnd = dp(8) })
+        if (danger) {
+            val button = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(12).toFloat()
+                    setColor(Color.argb(22, 206, 126, 126))
+                    setStroke(dp(1), Color.argb(120, 206, 126, 126))
+                }
+                isClickable = true
+                isFocusable = true
+                contentDescription = positive
+                setOnClickListener {
+                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    dialog.dismiss()
+                    onConfirm()
+                }
+                addView(
+                    VaultUi.icon(this@MainActivity, R.drawable.ic_trash, VaultTheme.danger, 18),
+                    LinearLayout.LayoutParams(dp(18), dp(18)).apply { marginEnd = dp(8) }
+                )
+                addView(VaultUi.text(this@MainActivity, positive, 14.5f, VaultTheme.danger, 600))
+            }
+            actions.addView(button, LinearLayout.LayoutParams(0, dp(50), 1f))
+        } else {
+            actions.addView(VaultUi.primaryButton(this, positive, null, 50) {
+                dialog.dismiss()
+                onConfirm()
+            }, LinearLayout.LayoutParams(0, dp(50), 1f))
+        }
+        panel.addView(actions, LinearLayout.LayoutParams(-1, -2))
+
+        dialog.setContentView(panel, ViewGroup.LayoutParams(-1, -2))
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setDimAmount(0.72f)
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            setWindowAnimations(android.R.style.Animation_Dialog)
+            decorView.setPadding(dp(20), 0, dp(20), 0)
+        }
+        dialog.setOnDismissListener { if (activeDialog === dialog) activeDialog = null }
+        activeDialog = dialog
         dialog.show()
-        styleDialog(dialog)
-        // Keep the two actions visually separate. The default AlertDialog
-        // button bar lets adjacent backgrounds touch, which makes the brass
-        // Enable button look like it is bleeding into the trailing edge.
-        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.let { button ->
-            button.minimumWidth = dp(104)
-            (button.layoutParams as? ViewGroup.MarginLayoutParams)?.apply {
-                marginEnd = dp(8)
-                button.layoutParams = this
-            }
-        }
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.let { button ->
-            button.minimumWidth = dp(104)
-            (button.layoutParams as? ViewGroup.MarginLayoutParams)?.apply {
-                marginStart = dp(8)
-                button.layoutParams = this
-            }
-        }
+        dialog.window?.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT)
     }
 
     private fun editEntry(entry: VaultStore.Entry) {
@@ -2256,7 +2385,7 @@ class MainActivity : Activity() {
     }
 
     private fun deleteEntry(entry: VaultStore.Entry, entries: MutableList<VaultStore.Entry>) {
-        confirm("Delete ${entry.title}?", "This item will be permanently removed from your vault. This cannot be undone.", "Delete") {
+        confirm("Delete ${entry.title}?", "This item will be permanently removed from your vault. This cannot be undone.", "Delete", danger = true) {
             window.decorView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
             entries.removeAll { it.id == entry.id }
             expandedCards.remove(entry.id)
@@ -2285,32 +2414,38 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                setColor(VaultTheme.surface)
-                cornerRadius = dp(24).toFloat()
+                setColor(VaultTheme.surfaceElevated)
+                cornerRadius = dp(26).toFloat()
                 setStroke(dp(1), VaultTheme.borderStrong)
             }
-            setPadding(dp(22), dp(24), dp(22), dp(20))
+            setPadding(dp(22), dp(22), dp(22), dp(18))
         }
+        panel.addView(VaultUi.brassRule(this, 36), LinearLayout.LayoutParams(dp(36), dp(1)).apply {
+            bottomMargin = dp(16)
+        })
         panel.addView(
-            VaultUi.icon(this, R.drawable.ic_fingerprint, VaultTheme.accentMint, 34),
-            LinearLayout.LayoutParams(dp(34), dp(34))
+            VaultUi.tintedBadge(this, R.drawable.ic_fingerprint, VaultTheme.accent, 48),
+            LinearLayout.LayoutParams(dp(48), dp(48))
         )
-        panel.addView(VaultUi.text(this, "Add fingerprint unlock?", 21f, VaultTheme.textPrimary, 600, heading = true).apply {
+        panel.addView(VaultUi.text(this, "BIOMETRIC UNLOCK", 9.5f, VaultTheme.textMuted, 600, letterSpacing = 0.14f).apply {
             setPadding(0, dp(14), 0, 0)
+        })
+        panel.addView(VaultUi.text(this, "Add fingerprint unlock?", 22f, VaultTheme.textPrimary, 600, heading = true).apply {
+            setPadding(0, dp(5), 0, 0)
         })
         panel.addView(VaultUi.text(
             this,
             "Open Aura with the fingerprint enrolled on this device. Your master password always remains available.",
-            12.5f, VaultTheme.textMuted, 430, lineSpacing = 1.35f
-        ).apply { setPadding(0, dp(8), 0, dp(22)) })
+            13f, VaultTheme.textMuted, 430, lineSpacing = 1.35f
+        ).apply { setPadding(0, dp(9), 0, dp(22)) })
 
-        val enable = VaultUi.primaryButton(this, "Enable fingerprint", R.drawable.ic_fingerprint, 50) {
+        val enable = VaultUi.primaryButton(this, "Enable fingerprint", R.drawable.ic_fingerprint, 52) {
             dialog.dismiss()
             enableBiometric()
         }
-        panel.addView(enable, LinearLayout.LayoutParams(-1, dp(50)))
-        val notNow = VaultUi.secondaryButton(this, "Not now", null, 50) { dialog.dismiss() }
-        panel.addView(notNow, LinearLayout.LayoutParams(-1, dp(50)).apply { topMargin = dp(10) })
+        panel.addView(enable, LinearLayout.LayoutParams(-1, dp(52)))
+        val notNow = VaultUi.secondaryButton(this, "Not now", null, 52) { dialog.dismiss() }
+        panel.addView(notNow, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(10) })
 
         dialog.setContentView(panel, ViewGroup.LayoutParams(-1, -2))
         dialog.window?.apply {
@@ -2500,23 +2635,39 @@ class MainActivity : Activity() {
         }
 
         root.removeAllViews()
-        root.addView(panel, LinearLayout.LayoutParams(-1, -2))
+        root.addView(panel, LinearLayout.LayoutParams(-1, -1))
     }
 
     private fun showPickerWaiting(panel: FrameLayout, resuming: Boolean = false) {
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(26), dp(24), dp(26), dp(24))
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(8), dp(26), dp(8), dp(26))
+            minimumHeight = dp(520)
         }
-        column.addView(VaultUi.icon(this, R.drawable.ic_image, VaultTheme.accentMint, 42))
+        column.addView(VaultUi.brassRule(this, 36), LinearLayout.LayoutParams(dp(36), dp(1)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            bottomMargin = dp(20)
+        })
+        column.addView(
+            VaultUi.tintedBadge(this, R.drawable.ic_image, VaultTheme.accent, 64),
+            LinearLayout.LayoutParams(dp(64), dp(64)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+        )
+        column.addView(VaultUi.text(
+            this,
+            if (resuming) "FINISHING IMPORT" else "CARD IMPORT",
+            9.5f, VaultTheme.textMuted, 600, letterSpacing = 0.14f
+        ).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dp(18), 0, 0)
+        })
         column.addView(VaultUi.text(
             this,
             if (resuming) "Finishing your import" else "Import card image",
-            20f, VaultTheme.textPrimary, 600, heading = true
+            23f, VaultTheme.textPrimary, 600, heading = true
         ).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, dp(14), 0, 0)
+            setPadding(0, dp(5), 0, 0)
         })
         column.addView(VaultUi.text(
             this,
@@ -2525,25 +2676,25 @@ class MainActivity : Activity() {
             } else {
                 "Choose a photo from Google Photos or your phone's gallery. The card is read on this device — nothing is uploaded."
             },
-            11f, VaultTheme.textMuted, 430, gravity = Gravity.CENTER, lineSpacing = 1.3f
+            12.5f, VaultTheme.textMuted, 430, gravity = Gravity.CENTER, lineSpacing = 1.35f
         ).apply {
-            setPadding(0, dp(8), 0, dp(20))
+            setPadding(0, dp(9), 0, dp(22))
         })
         if (resuming) {
             val progress = android.widget.ProgressBar(this).apply {
-                indeterminateTintList = ColorStateList.valueOf(VaultTheme.accentMint)
+                indeterminateTintList = ColorStateList.valueOf(VaultTheme.accent)
             }
-            column.addView(progress, LinearLayout.LayoutParams(dp(30), dp(30)))
+            column.addView(progress, LinearLayout.LayoutParams(dp(30), dp(30)).apply { gravity = Gravity.CENTER_HORIZONTAL })
         } else {
             // If the OS killed the process and dropped the picker, this screen
             // is what the user returns to. Give them a way to reopen the picker
             // instead of leaving only a Cancel button.
-            column.addView(VaultUi.primaryButton(this, "Choose photo", R.drawable.ic_image, 48) {
+            column.addView(VaultUi.primaryButton(this, "Choose photo", R.drawable.ic_image, 52) {
                 pickCardImage()
-            }, LinearLayout.LayoutParams(-1, dp(48)))
-            column.addView(VaultUi.secondaryButton(this, "Cancel", R.drawable.ic_close, 48) {
+            }, LinearLayout.LayoutParams(-1, dp(52)))
+            column.addView(VaultUi.secondaryButton(this, "Cancel", R.drawable.ic_close, 52) {
                 cancelImport()
-            }, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(10) })
+            }, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(10) })
         }
         panel.addView(column, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
     }
@@ -2553,43 +2704,52 @@ class MainActivity : Activity() {
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(18), dp(10), dp(18), dp(18))
+            setPadding(dp(18), dp(14), dp(18), dp(18))
         }
-        column.addView(VaultUi.text(this, "Scan a card", 20f, VaultTheme.textPrimary, 600, heading = true).apply {
+        column.addView(VaultUi.brassRule(this, 36), LinearLayout.LayoutParams(dp(36), dp(1)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            bottomMargin = dp(12)
+        })
+        column.addView(VaultUi.text(this, "CARD IMPORT", 9.5f, VaultTheme.textMuted, 600, letterSpacing = 0.14f).apply {
             gravity = Gravity.CENTER_HORIZONTAL
         })
-        column.addView(VaultUi.text(this, "Hold the card flat, steady and well lit. The number is read on this device — the photo never leaves the phone.", 11f, VaultTheme.textMuted, 430, gravity = Gravity.CENTER, lineSpacing = 1.3f).apply {
-            setPadding(0, dp(4), 0, dp(10))
+        column.addView(VaultUi.text(this, "Scan a card", 23f, VaultTheme.textPrimary, 600, heading = true).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dp(4), 0, 0)
+        })
+        column.addView(VaultUi.text(this, "Hold the card flat, steady and well lit. The number is read on this device — the photo never leaves the phone.", 12f, VaultTheme.textMuted, 430, gravity = Gravity.CENTER, lineSpacing = 1.32f).apply {
+            setPadding(0, dp(6), 0, dp(12))
         })
 
         val previewHost = FrameLayout(this).apply {
             background = GradientDrawable().apply {
                 cornerRadius = dp(18).toFloat()
                 setColor(Color.rgb(14, 15, 18))
-                setStroke(dp(1), VaultTheme.border)
+                setStroke(dp(1), VaultTheme.borderStrong)
             }
             clipToOutline = true
         }
         val lens = TextureView(this)
-        previewHost.addView(lens, FrameLayout.LayoutParams(-1, dp(400), Gravity.CENTER))
-        column.addView(previewHost, LinearLayout.LayoutParams(-1, dp(400)).apply { topMargin = dp(8) })
+        previewHost.addView(lens, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
+        previewHost.minimumHeight = dp(300)
+        column.addView(previewHost, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6) })
 
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(0, dp(16), 0, 0)
         }
-        val back = VaultUi.secondaryButton(this, "Cancel", R.drawable.ic_close, 50) {
+        val back = VaultUi.secondaryButton(this, "Cancel", R.drawable.ic_close, 52) {
             cameraEngine?.close()
             cameraEngine = null
             cancelImport()
         }
-        controls.addView(back, LinearLayout.LayoutParams(0, dp(50), 1f).apply { marginEnd = dp(10) })
-        val shutter = VaultUi.primaryButton(this, "Capture", R.drawable.ic_camera, 50) { cameraEngine?.capture() }
-        controls.addView(shutter, LinearLayout.LayoutParams(0, dp(50), 1f))
+        controls.addView(back, LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginEnd = dp(10) })
+        val shutter = VaultUi.primaryButton(this, "Capture", R.drawable.ic_camera, 52) { cameraEngine?.capture() }
+        controls.addView(shutter, LinearLayout.LayoutParams(0, dp(52), 1f))
         column.addView(controls, LinearLayout.LayoutParams(-1, -2))
 
-        panel.addView(column, FrameLayout.LayoutParams(-1, -2))
+        panel.addView(column, FrameLayout.LayoutParams(-1, -1))
 
         val engine = CardCamera(
             this, lens, captureFile,
@@ -2821,7 +2981,7 @@ class MainActivity : Activity() {
     // ==========================================
     private fun styleDialog(dialog: AlertDialog) {
         dialog.window?.apply {
-            setBackgroundDrawable(VaultTheme.cardShape(this@MainActivity, 24, Color.rgb(19, 21, 31), VaultTheme.borderStrong))
+            setBackgroundDrawable(VaultTheme.cardShape(this@MainActivity, 24, VaultTheme.surfaceElevated, VaultTheme.borderStrong))
             setDimAmount(0.72f)
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             decorView.setPadding(dp(4), dp(4), dp(4), dp(4))
@@ -2834,7 +2994,7 @@ class MainActivity : Activity() {
             it.setLineSpacing(0f, 1.3f)
         }
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
-            setTextColor(Color.WHITE)
+            setTextColor(VaultTheme.buttonInk)
             background = VaultTheme.accentButtonDrawable(this@MainActivity, 12)
             isAllCaps = false
             typeface = VaultTheme.typeface(this@MainActivity, 600, heading = true)

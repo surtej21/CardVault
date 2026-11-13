@@ -4,24 +4,28 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#211C38"
-        android:strokeColor="#D3C9FF"
-        android:strokeWidth="3.5"
-        android:strokeLineJoin="round"
-        android:pathData="M54,17 L79,27 V48 C79,66 68,79 54,88 C40,79 29,66 29,48 V27 Z" />
+        android:fillColor="#14151A"
+        android:strokeColor="#C9A86B"
+        android:strokeWidth="2.5"
+        android:pathData="M54,24 a30,30 0 1,0 0.02,0 Z" />
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#63D6A0"
-        android:strokeWidth="4"
+        android:strokeColor="#8C7648"
+        android:strokeWidth="1.5"
+        android:pathData="M54,31.5 a22.5,22.5 0 1,0 0.01,0 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#C9A86B"
+        android:strokeWidth="3.5"
         android:strokeLineCap="round"
-        android:pathData="M43,50 V43 C43,37 48,33 54,33 C60,33 65,37 65,43 V50" />
+        android:pathData="M54,54 L54,32.5 M54,54 L72.6,64.75 M54,54 L35.4,64.75" />
     <path
-        android:fillColor="#9B86FF"
-        android:pathData="M39,48 H69 C71,48 73,50 73,53 V69 C73,72 71,74 69,74 H39 C37,74 35,72 35,69 V53 C35,50 37,48 39,48 Z" />
+        android:fillColor="#C9A86B"
+        android:pathData="M54,45 a9,9 0 1,0 0.01,0 Z" />
     <path
-        android:fillColor="#111729"
-        android:pathData="M51,59 A3,3 0,1 1,57 59 A3,3 0,1 1,51 59 M52.5,61 H55.5 V67 H52.5 Z" />
+        android:fillColor="#14151A"
+        android:pathData="M54,50.5 a3.5,3.5 0 1,0 0.01,0 Z" />
     <path
-        android:fillColor="#63D6A0"
-        android:pathData="M82,18 L85,25 L92,28 L85,31 L82,38 L79,31 L72,28 L79,25 Z" />
+        android:fillColor="#A88C55"
+        android:pathData="M81.5,54 a1.5,1.5 0 1,0 0.01,0 Z M73.45,73.45 a1.5,1.5 0 1,0 0.01,0 Z M54,81.5 a1.5,1.5 0 1,0 0.01,0 Z M34.55,73.45 a1.5,1.5 0 1,0 0.01,0 Z M26.5,54 a1.5,1.5 0 1,0 0.01,0 Z M34.55,34.55 a1.5,1.5 0 1,0 0.01,0 Z M54,26.5 a1.5,1.5 0 1,0 0.01,0 Z M73.45,34.55 a1.5,1.5 0 1,0 0.01,0 Z" />
 </vector>

@@ -12,6 +12,7 @@ import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
@@ -29,42 +30,48 @@ import android.widget.TextView
 object VaultTheme {
 
     // Core neutrals — ink-steel ramp (the world: iron, plate, low brass light).
-    val bgPrimary = Color.rgb(9, 10, 12)
+    val bgPrimary = Color.rgb(8, 9, 11)
     val bgSecondary = Color.rgb(12, 13, 16)
-    val surface = Color.rgb(17, 18, 21)
-    val surfaceElevated = Color.rgb(21, 22, 26)
-    val surfaceInput = Color.rgb(13, 14, 17)
+    val surface = Color.rgb(18, 19, 23)
+    val surfaceElevated = Color.rgb(24, 26, 30)
+    val surfaceInput = Color.rgb(14, 15, 18)
 
     // Accent — brass. The one hue that survives the unslop.
-    val accent = Color.rgb(198, 164, 104)
-    val accentDeep = Color.rgb(174, 141, 84)
+    val accent = Color.rgb(201, 168, 107)
+    val accentDeep = Color.rgb(158, 124, 69)
+    val accentBright = Color.rgb(227, 198, 140)
 
     // Functional / category tints — calm steps of neutral steel, sage and rose,
     // toned to sit inside the ramp. Used for status dots and small marks only.
-    val accentBlue = Color.rgb(126, 144, 168)   // steel — cards / info
-    val accentMint = Color.rgb(124, 172, 138)   // sage — custom / positive
-    val accentRose = Color.rgb(152, 148, 158)   // warm steel — passwords
+    val accentBlue = Color.rgb(142, 154, 171)   // steel — cards / info
+    val accentMint = Color.rgb(143, 179, 154)   // sage — custom / positive
+    val accentRose = Color.rgb(167, 154, 166)   // warm steel — passwords
     val accentAmber = Color.rgb(214, 168, 110)  // warning
-    val accentSand = Color.rgb(168, 160, 146)   // muted plate
+    val accentSand = Color.rgb(175, 166, 148)   // muted plate
 
-    val textPrimary = Color.rgb(236, 235, 233)
-    val textSecondary = Color.rgb(178, 179, 184)
-    val textMuted = Color.rgb(132, 134, 141)
-    val textFaint = Color.rgb(101, 103, 110)
+    val textPrimary = Color.rgb(240, 239, 236)
+    val textSecondary = Color.rgb(189, 189, 185)
+    val textMuted = Color.rgb(147, 148, 154)
+    val textFaint = Color.rgb(113, 115, 123)
 
-    val border = Color.argb(26, 255, 255, 255)
-    val borderStrong = Color.argb(40, 255, 255, 255)
-    val borderFaint = Color.argb(14, 255, 255, 255)
+    val border = Color.argb(28, 255, 255, 255)
+    val borderStrong = Color.argb(48, 255, 255, 255)
+    val borderFaint = Color.argb(15, 255, 255, 255)
 
-    // Buttons are off-white plates with ink text — the accent carries no glow.
-    val buttonFace = Color.rgb(226, 223, 216)
-    val buttonInk = Color.rgb(21, 20, 17)
+    val brassLine = Color.argb(96, 201, 168, 107)
+    val brassFaint = Color.argb(40, 201, 168, 107)
+    val brassWash = Color.argb(18, 201, 168, 107)
+
+    // Buttons are brass plates with ink text — the accent carries no glow.
+    val buttonFace = Color.rgb(201, 168, 107)
+    val buttonFaceDeep = Color.rgb(178, 145, 86)
+    val buttonInk = Color.rgb(23, 19, 12)
 
     // Functional colors -------------------------------------------------------
-    val positive = Color.rgb(124, 172, 138)
+    val positive = Color.rgb(143, 179, 154)
     val warning = Color.rgb(214, 168, 110)
-    val danger = Color.rgb(206, 120, 120)
-    val info = Color.rgb(126, 144, 168)
+    val danger = Color.rgb(206, 126, 126)
+    val info = Color.rgb(142, 154, 171)
 
     // Typography --------------------------------------------------------------
     private data class FontKey(val path: String, val weight: Int)
@@ -89,6 +96,9 @@ object VaultTheme {
         }
     }
 
+    fun mono(context: Context): Typeface =
+        Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
+
     fun styleText(
         view: TextView,
         color: Int = textPrimary,
@@ -111,11 +121,11 @@ object VaultTheme {
     fun dp(context: Context, n: Float): Int = (n * context.resources.displayMetrics.density).toInt()
 
     // Drawables ---------------------------------------------------------------
-    fun auroraBackground(): Drawable = AuroraDrawable()
+    fun auroraBackground(context: Context): Drawable = AuroraDrawable(context.resources.displayMetrics.density)
 
     fun cardShape(
         context: Context,
-        radiusDp: Int = 18,
+        radiusDp: Int = 14,
         bg: Int = surface,
         borderColor: Int = border
     ): GradientDrawable = GradientDrawable().apply {
@@ -128,7 +138,7 @@ object VaultTheme {
     /** Flat raised surface with a hairline — no glass gradient. */
     fun glassShape(
         context: Context,
-        radiusDp: Int = 18,
+        radiusDp: Int = 14,
         strong: Boolean = false,
         borderColor: Int = if (strong) borderStrong else border
     ): GradientDrawable = GradientDrawable().apply {
@@ -138,23 +148,37 @@ object VaultTheme {
         setStroke(dp(context, 1), borderColor)
     }
 
-    /** Primary action: a solid off-white plate (dark theme) with ink text. */
-    fun accentButtonDrawable(context: Context, radiusDp: Int = 14): GradientDrawable =
-        GradientDrawable().apply {
+    /** A steel plate: subtle vertical metal falloff for hero surfaces. */
+    fun plateShape(context: Context, radiusDp: Int = 18): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(surfaceElevated, bgSecondary)
+        ).apply {
             shape = GradientDrawable.RECTANGLE
-            setColor(buttonFace)
             cornerRadius = dp(context, radiusDp).toFloat()
+            setStroke(dp(context, 1), borderStrong)
         }
 
-    fun secondaryButtonDrawable(context: Context, radiusDp: Int = 14): GradientDrawable =
+    /** Primary action: a solid brass plate with ink text. */
+    fun accentButtonDrawable(context: Context, radiusDp: Int = 12): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(accentBright, accent)
+        ).apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(context, radiusDp).toFloat()
+            setStroke(dp(context, 1), Color.argb(90, 255, 236, 190))
+        }
+
+    fun secondaryButtonDrawable(context: Context, radiusDp: Int = 12): GradientDrawable =
         glassShape(context, radiusDp, strong = true, borderColor = borderStrong)
 
-    fun iconButtonDrawable(context: Context, radiusDp: Int = 12, tinted: Boolean = false): GradientDrawable =
+    fun iconButtonDrawable(context: Context, radiusDp: Int = 10, tinted: Boolean = false): GradientDrawable =
         GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(context, radiusDp).toFloat()
-            setColor(if (tinted) Color.argb(22, 198, 164, 104) else Color.argb(12, 255, 255, 255))
-            setStroke(dp(context, 1), if (tinted) Color.argb(46, 198, 164, 104) else border)
+            setColor(if (tinted) brassWash else Color.argb(12, 255, 255, 255))
+            setStroke(dp(context, 1), if (tinted) brassFaint else border)
         }
 
     /** Chips: solid surface steps, never a gradient wash. */
@@ -163,11 +187,23 @@ object VaultTheme {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(context, 99).toFloat()
             setColor(if (selected) surfaceElevated else Color.argb(10, 255, 255, 255))
-            setStroke(dp(context, 1), if (selected) Color.argb(70, 198, 164, 104) else border)
+            setStroke(dp(context, 1), if (selected) brassLine else border)
         }
 
-    fun glowDrawable(color: Int, radiusDp: Int = 180): Drawable =
-        RadialGlowDrawable(color, radiusDp)
+    /** Hairline rule that fades at both ends — an engraving, not a divider. */
+    fun brassRuleDrawable(context: Context): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(Color.TRANSPARENT, brassLine, Color.TRANSPARENT)
+        )
+
+    /** Press feedback for flat ledger rows. */
+    fun rowRipple(context: Context): Drawable =
+        RippleDrawable(
+            ColorStateList.valueOf(Color.argb(26, 201, 168, 107)),
+            null,
+            null
+        )
 
     fun tint(context: Context, drawableRes: Int, color: Int): Drawable? =
         context.getDrawable(drawableRes)?.mutate()?.apply {
@@ -190,46 +226,59 @@ object VaultTheme {
         }
     }
 
-    private class RadialGlowDrawable(
-        private val color: Int,
-        private val radiusDp: Int
-    ) : Drawable() {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    /** The vault room: dark ink steel, one very quiet overhead light. No washes. */
+    private class AuroraDrawable(private val density: Float) : Drawable() {
+        private val base = Paint(Paint.ANTI_ALIAS_FLAG)
+        private var cache: android.graphics.Bitmap? = null
+        private var cacheWidth = 0
+        private var cacheHeight = 0
 
         override fun draw(canvas: Canvas) {
-            if (bounds.isEmpty) return
-            val maxRadius = minOf(bounds.width(), bounds.height()) / 2f
-            val r = (maxRadius * (radiusDp / 180f)).coerceIn(1f, maxRadius)
-            paint.shader = RadialGradient(
-                bounds.exactCenterX(), bounds.exactCenterY(), r,
-                color, Color.TRANSPARENT, Shader.TileMode.CLAMP
-            )
-            canvas.drawRect(bounds, paint)
+            val w = bounds.width()
+            val h = bounds.height()
+            if (w <= 0 || h <= 0) return
+
+            // Full-screen radial gradients are expensive to rasterize on every
+            // frame (especially without a GPU). Cache the room once per size.
+            val cached = cache?.takeIf { cacheWidth == w && cacheHeight == h }
+                ?: render(w, h).also {
+                    cache = it
+                    cacheWidth = w
+                    cacheHeight = h
+                }
+            canvas.drawBitmap(cached, bounds.left.toFloat(), bounds.top.toFloat(), null)
         }
 
-        override fun setAlpha(alpha: Int) { paint.alpha = alpha }
-        override fun setColorFilter(colorFilter: ColorFilter?) { paint.colorFilter = colorFilter }
-        @Deprecated("Deprecated in Java")
-        override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
-    }
+        private fun render(w: Int, h: Int): android.graphics.Bitmap {
+            val bitmap = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val width = w.toFloat()
+            val height = h.toFloat()
 
-    /** The vault room: dark ink steel, one very quiet vignette. No washes. */
-    private class AuroraDrawable : Drawable() {
-        private val base = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        override fun draw(canvas: Canvas) {
             base.color = bgPrimary
-            canvas.drawRect(bounds, base)
-            val w = bounds.width().toFloat()
-            val h = bounds.height().toFloat()
-            val left = bounds.left.toFloat()
-            val top = bounds.top.toFloat()
+            canvas.drawRect(0f, 0f, width, height, base)
+
+            // A low, warm light from above the door — barely there.
             base.shader = RadialGradient(
-                left + w * 0.5f, top + h * 0.4f, w * 1.2f,
-                Color.TRANSPARENT, Color.argb(26, 2, 2, 3), Shader.TileMode.CLAMP
+                width * 0.5f, -height * 0.12f, height * 0.72f,
+                Color.argb(15, 201, 168, 107), Color.TRANSPARENT, Shader.TileMode.CLAMP
             )
-            canvas.drawRect(bounds, base)
+            canvas.drawRect(0f, 0f, width, height, base)
+
+            // Vignette: the room falls away at the edges.
+            base.shader = RadialGradient(
+                width * 0.5f, height * 0.42f, width * 1.18f,
+                Color.TRANSPARENT, Color.argb(52, 0, 0, 0), Shader.TileMode.CLAMP
+            )
+            canvas.drawRect(0f, 0f, width, height, base)
             base.shader = null
+
+            // Faint door-frame rules at the extreme edges.
+            base.color = Color.argb(9, 255, 255, 255)
+            val inset = 14f * density
+            canvas.drawRect(inset, 0f, inset + 1f, height, base)
+            canvas.drawRect(width - inset, 0f, width - inset + 1f, height, base)
+            return bitmap
         }
 
         override fun setAlpha(alpha: Int) { base.alpha = alpha }
