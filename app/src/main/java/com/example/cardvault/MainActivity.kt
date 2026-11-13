@@ -7,6 +7,7 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -20,6 +21,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -49,8 +51,10 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.File
+import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Date
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.Executors
@@ -61,6 +65,9 @@ class MainActivity : Activity() {
     companion object {
         private const val REQUEST_CARD_CAMERA_PERM = 9011
         private const val REQUEST_CARD_IMAGE = 9013
+        private const val REQUEST_BACKUP_IMPORT = 9014
+        private const val BACKUP_MIME = "application/octet-stream"
+        private const val MAX_BACKUP_BYTES = 8 * 1024 * 1024
         private const val CLIP_TOKEN_EXTRA = "com.example.cardvault.extra.CLIP_TOKEN"
         private const val CLIP_TOKEN_PREFIX = "aurelia-vault:"
         private val PRIMARY_SECTIONS = listOf("Overview", "Cards", "Bank logins", "Passwords", "Custom")
@@ -99,6 +106,14 @@ class MainActivity : Activity() {
     /** In-app import screens: "camera" | "picker" | "resume" | null. */
     private var importMode: String? = null
 
+    /** Encrypted backup transfer state. Kept separate from card-import state. */
+    private var backupMode = false
+    private var backupWorking = false
+    private var backupError: String? = null
+    private var backupRestoredNotice = false
+    private val backupPrefs by lazy { getSharedPreferences("backup_transfer", MODE_PRIVATE) }
+    private val backupExecutor by lazy { Executors.newSingleThreadExecutor() }
+
     private var activeSection = "Overview"
     private var searchQuery = ""
     private var activeDialog: Dialog? = null
@@ -106,7 +121,7 @@ class MainActivity : Activity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val autoLockMillis = 60_000L
     private val idleLock = Runnable {
-        if (session != null && recoveryToShow == null && importMode == null && activeDialog == null) lockNow()
+        if (session != null && recoveryToShow == null && importMode == null && !backupMode && activeDialog == null) lockNow()
     }
     private var recoveryUnlockMode = false
     private val predictiveBackCallback = OnBackInvokedCallback {
@@ -140,6 +155,14 @@ class MainActivity : Activity() {
             } else if (savedMode != null) {
                 clearPendingImport()
             }
+        }
+        // A backup picker may have had the process killed underneath it. Keep
+        // the transfer screen up until the picker result arrives.
+        val backupAt = backupPrefs.getLong("at", 0L)
+        if (backupAt > 0L && System.currentTimeMillis() - backupAt <= 15 * 60_000L) {
+            backupMode = true
+        } else if (backupAt > 0L) {
+            backupPrefs.edit().clear().apply()
         }
         if (Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(
@@ -190,6 +213,7 @@ class MainActivity : Activity() {
         // takes the foreground here, and this is exactly when the process is
         // most likely to be killed by the OS.
         if (importMode != null) session?.let { SessionKeeper.save(this, it.dek) }
+        if (backupMode) session?.let { SessionKeeper.save(this, it.dek) }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -230,7 +254,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (session != null && importMode == null) {
+        if (session != null && importMode == null && !backupMode) {
             mainHandler.removeCallbacks(idleLock)
             mainHandler.postDelayed(idleLock, autoLockMillis)
         }
@@ -238,7 +262,7 @@ class MainActivity : Activity() {
 
     override fun onUserInteraction() {
         super.onUserInteraction()
-        if (session != null && recoveryToShow == null && importMode == null) {
+        if (session != null && recoveryToShow == null && importMode == null && !backupMode) {
             mainHandler.removeCallbacks(idleLock)
             mainHandler.postDelayed(idleLock, autoLockMillis)
         }
@@ -251,6 +275,10 @@ class MainActivity : Activity() {
     }
 
     private fun handleBackPress(): Boolean {
+        if (backupMode) {
+            cancelBackupImport()
+            return true
+        }
         if (importMode != null) {
             // Same cleanup as the on-screen Cancel: close the camera, delete the
             // pending photo, drop the resume token and return to the vault.
@@ -279,7 +307,7 @@ class MainActivity : Activity() {
     // ==========================================
     private fun render(preserveScroll: Boolean = false) {
         val previousScroll = if (preserveScroll && ::contentScroll.isInitialized) contentScroll.scrollY else 0
-        val vaultVisible = session != null && recoveryToShow == null && importMode == null
+        val vaultVisible = session != null && recoveryToShow == null && importMode == null && !backupMode
 
         val screen = FrameLayout(this).apply { background = VaultTheme.auroraBackground(this@MainActivity) }
 
@@ -359,6 +387,7 @@ class MainActivity : Activity() {
         screen.requestApplyInsets()
 
         when {
+            backupMode -> showBackupTransfer()
             importMode != null && session != null -> showCardImport()
             recoveryToShow != null -> showRecovery()
             session != null -> showVault()
@@ -689,6 +718,8 @@ class MainActivity : Activity() {
         note.addView(VaultUi.icon(this, R.drawable.ic_lock, VaultTheme.accentMint, 15), LinearLayout.LayoutParams(dp(15), dp(15)).apply { marginEnd = dp(7) })
         note.addView(VaultUi.text(this, "AES-256-GCM  ·  Local only  ·  No cloud", 10f, VaultTheme.textFaint, 500), LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(note, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
+
+        textBtn("Restore from encrypted backup", VaultTheme.accent) { beginBackupImport() }
     }
 
     private fun showUnlock() {
@@ -697,6 +728,28 @@ class MainActivity : Activity() {
             "Unlock your vault",
             "Your vault is encrypted on this device and nowhere else."
         )
+
+        if (backupRestoredNotice) {
+            val notice = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                background = VaultTheme.glassShape(this@MainActivity, 14, strong = true)
+                setPadding(dp(13), dp(12), dp(13), dp(12))
+            }
+            notice.addView(VaultUi.tintedBadge(this, R.drawable.ic_check, VaultTheme.accentMint, 34))
+            val copy = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(11), 0, 0, 0)
+            }
+            copy.addView(VaultUi.text(this, "Backup restored", 12.5f, VaultTheme.textPrimary, 600))
+            copy.addView(VaultUi.text(
+                this,
+                "Unlock with the master password or recovery key that protected this backup.",
+                10.5f, VaultTheme.textMuted, 430, lineSpacing = 1.3f
+            ).apply { setPadding(0, dp(2), 0, 0) })
+            notice.addView(copy, LinearLayout.LayoutParams(0, -2, 1f))
+            root.addView(notice, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) })
+        }
 
         val biometric = VaultStore.biometricPayload(this)
         if (biometric != null) {
@@ -714,6 +767,7 @@ class MainActivity : Activity() {
                     .onSuccess {
                         password.text.clear()
                         session = it
+                        backupRestoredNotice = false
                         recoveryUnlockMode = false
                         window.decorView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                         mainHandler.postDelayed(idleLock, autoLockMillis)
@@ -825,6 +879,7 @@ class MainActivity : Activity() {
                     confirm.text.clear()
                     session = newSession
                     recoveryToShow = newKey
+                    backupRestoredNotice = false
                     recoveryUnlockMode = false
                     render()
                 }.onFailure {
@@ -1733,6 +1788,20 @@ class MainActivity : Activity() {
             ) { lockNow() }
         )), LinearLayout.LayoutParams(-1, -2))
 
+        sectionLabel("Transfer")
+        root.addView(settingsGroup(listOf(
+            settingsRow(
+                R.drawable.ic_download, VaultTheme.accentMint,
+                "Export encrypted backup", "Save to Downloads or share it with another phone",
+                "Export"
+            ) { showExportSheet() },
+            settingsRow(
+                R.drawable.ic_upload, VaultTheme.accentAmber,
+                "Import encrypted backup", "Replace this vault with a backup file",
+                "Import"
+            ) { confirmBackupImport() }
+        )), LinearLayout.LayoutParams(-1, -2))
+
         sectionLabel("Privacy")
         root.addView(settingsGroup(listOf(
             infoRow(R.drawable.ic_image, VaultTheme.accentBlue, "Screenshots", "Screen capture and recent-app previews", if (BuildConfig.DEBUG) "Debug" else "Blocked"),
@@ -1826,6 +1895,291 @@ class MainActivity : Activity() {
             row.addView(VaultUi.text(this, value.uppercase(), 9.5f, VaultTheme.textMuted, 650, letterSpacing = 0.08f))
         }
         return row
+    }
+
+    // ==========================================
+    // ENCRYPTED BACKUP TRANSFER
+    // ==========================================
+    private fun showExportSheet() {
+        val actions = listOf(
+            VaultUi.SheetAction(
+                R.drawable.ic_download, VaultTheme.accentMint,
+                "Save to Downloads", "Download/Aura Vault — ready to copy anywhere"
+            ) { exportBackup(share = false) },
+            VaultUi.SheetAction(
+                R.drawable.ic_share, VaultTheme.accentBlue,
+                "Share backup", "Send to Drive, WhatsApp or another app"
+            ) { exportBackup(share = true) }
+        )
+        VaultUi.showActionSheet(this, "Encrypted backup", "Export a copy", actions)
+    }
+
+    private fun exportBackup(share: Boolean) {
+        val bytes = runCatching { VaultStore.backupBytes(this) }
+            .getOrElse {
+                message(it.message ?: "Could not read the encrypted vault.")
+                return
+            }
+        val name = backupFileName()
+        message(if (share) "Preparing encrypted backup…" else "Saving encrypted backup…")
+        backupExecutor.execute {
+            val result = runCatching { writeBackupToDownloads(name, bytes) }
+            mainHandler.post {
+                result.onSuccess { uri ->
+                    if (share) {
+                        shareBackup(uri)
+                    } else {
+                        success("Saved to Downloads/Aura Vault")
+                    }
+                }.onFailure {
+                    message("Could not save the backup: ${it.message ?: "storage error"}")
+                }
+            }
+        }
+    }
+
+    private fun backupFileName(): String =
+        "aura-vault-backup-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.auravault"
+
+    private fun writeBackupToDownloads(name: String, bytes: ByteArray): Uri {
+        val resolver = contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, name)
+            put(MediaStore.Downloads.MIME_TYPE, BACKUP_MIME)
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Aura Vault")
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw IllegalStateException("Downloads is unavailable.")
+        try {
+            resolver.openOutputStream(uri)?.use { it.write(bytes) }
+                ?: throw IllegalStateException("Could not open the backup file.")
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+            return uri
+        } catch (t: Throwable) {
+            runCatching { resolver.delete(uri, null, null) }
+            throw t
+        }
+    }
+
+    private fun shareBackup(uri: Uri) {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = BACKUP_MIME
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "Aura Vault encrypted backup")
+            clipData = ClipData.newRawUri("Aura Vault backup", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { startActivity(Intent.createChooser(send, "Share encrypted backup")) }
+            .onFailure { message("No app can share this file.") }
+    }
+
+    private fun confirmBackupImport() {
+        confirm(
+            "Replace this vault?",
+            "Importing a backup replaces the vault on this phone. Export the current vault first if you may need it. You will unlock the backup with the password that protected it.",
+            "Choose backup",
+            danger = true
+        ) { beginBackupImport() }
+    }
+
+    private fun beginBackupImport() {
+        backupError = null
+        backupWorking = false
+        backupMode = true
+        backupPrefs.edit().putLong("at", System.currentTimeMillis()).apply()
+        session?.let { SessionKeeper.save(this, it.dek) }
+        mainHandler.removeCallbacks(idleLock)
+        render()
+        launchBackupPicker()
+    }
+
+    private fun launchBackupPicker() {
+        val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { startActivityForResult(picker, REQUEST_BACKUP_IMPORT) }
+            .onFailure {
+                backupMode = false
+                backupPrefs.edit().clear().apply()
+                render()
+                message("No file picker is available on this device.")
+            }
+    }
+
+    private fun handleBackupImportResult(resultCode: Int, data: Intent?) {
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            cancelBackupImport()
+            return
+        }
+        backupWorking = true
+        backupError = null
+        backupMode = true
+        render()
+        backupExecutor.execute {
+            val result = runCatching { readBackupFile(uri) }
+            mainHandler.post {
+                if (!backupMode) return@post
+                backupWorking = false
+                result.onSuccess { bytes ->
+                    // Drop the old resume token before the vault file changes:
+                    // if the process dies right after the atomic write, it must
+                    // not restore a session that belongs to the previous vault.
+                    SessionKeeper.clear(this)
+                    runCatching { VaultStore.importBackup(this, bytes) }
+                        .onSuccess { completeBackupImport() }
+                        .onFailure {
+                            backupError = it.message ?: "Could not import this backup."
+                            render()
+                        }
+                }.onFailure {
+                    backupError = it.message ?: "This file is not a valid Aura backup."
+                    render()
+                }
+            }
+        }
+    }
+
+    private fun readBackupFile(uri: Uri): ByteArray {
+        val resolver = contentResolver
+        val reported = resolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+        if (reported > MAX_BACKUP_BYTES) throw IllegalArgumentException("The backup file is too large.")
+        val input = resolver.openInputStream(uri)
+            ?: throw IllegalArgumentException("Could not open that file.")
+        return input.use { stream ->
+            val output = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(16 * 1024)
+            var total = 0
+            while (true) {
+                val read = stream.read(buffer)
+                if (read < 0) break
+                total += read
+                if (total > MAX_BACKUP_BYTES) throw IllegalArgumentException("The backup file is too large.")
+                output.write(buffer, 0, read)
+            }
+            output.toByteArray()
+        }
+    }
+
+    /** Swap the local vault for the backup, then require its original password. */
+    private fun completeBackupImport() {
+        mainHandler.removeCallbacks(idleLock)
+        clearVaultClipboardNow()
+        activeDialog?.dismiss()
+        activeDialog = null
+        SessionKeeper.clear(this)
+        VaultStore.clearBiometric(this)
+        clearPendingImport()
+        importGeneration++
+        importCleanupFile?.delete()
+        importCleanupFile = null
+        pendingReturnToVault = false
+        importMode = null
+        session?.dek?.fill(0)
+        session = null
+        recoveryToShow = null
+        recoveryUnlockMode = false
+        recoveryContinuation = null
+        searchQuery = ""
+        expandedCards.clear()
+        activeSection = "Overview"
+        VaultRuntime.section = "Overview"
+        backupMode = false
+        backupWorking = false
+        backupError = null
+        backupRestoredNotice = true
+        backupPrefs.edit().clear().apply()
+        render()
+    }
+
+    private fun cancelBackupImport() {
+        backupMode = false
+        backupWorking = false
+        backupError = null
+        backupPrefs.edit().clear().apply()
+        SessionKeeper.clear(this)
+        render()
+        rearmIdle()
+    }
+
+    private fun showBackupTransfer() {
+        val panel = FrameLayout(this)
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(6), dp(24), dp(6), dp(24))
+            minimumHeight = dp(520)
+        }
+        column.addView(VaultUi.brassRule(this, 36), LinearLayout.LayoutParams(dp(36), dp(1)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            bottomMargin = dp(20)
+        })
+        column.addView(
+            VaultUi.tintedBadge(this, R.drawable.ic_upload, VaultTheme.accentAmber, 64),
+            LinearLayout.LayoutParams(dp(64), dp(64)).apply { gravity = Gravity.CENTER_HORIZONTAL }
+        )
+        column.addView(VaultUi.text(
+            this, "ENCRYPTED TRANSFER", 9.5f, VaultTheme.textMuted, 600, letterSpacing = 0.14f
+        ).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dp(18), 0, 0)
+        })
+        column.addView(VaultUi.text(
+            this, "Restore your vault", 23f, VaultTheme.textPrimary, 600, heading = true
+        ).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dp(5), 0, 0)
+        })
+        column.addView(VaultUi.text(
+            this,
+            "Choose the .auravault file you exported from your old phone. It is already encrypted; you will unlock it with the password that protected it.",
+            12.5f, VaultTheme.textMuted, 430, gravity = Gravity.CENTER, lineSpacing = 1.35f
+        ).apply {
+            setPadding(0, dp(9), 0, dp(22))
+        })
+
+        if (backupWorking) {
+            column.addView(VaultUi.text(
+                this, "Checking the encrypted backup…", 11.5f, VaultTheme.textSecondary, 450, gravity = Gravity.CENTER
+            ).apply { setPadding(0, 0, 0, dp(12)) })
+            val progress = android.widget.ProgressBar(this).apply {
+                indeterminateTintList = ColorStateList.valueOf(VaultTheme.accent)
+            }
+            column.addView(progress, LinearLayout.LayoutParams(dp(30), dp(30)).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        } else {
+            backupError?.let { error ->
+                val errorPanel = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    background = VaultTheme.glassShape(this@MainActivity, 12, borderColor = VaultTheme.warning)
+                    setPadding(dp(13), dp(11), dp(13), dp(11))
+                }
+                errorPanel.addView(VaultUi.text(this, "That file could not be used", 11.5f, VaultTheme.warning, 600))
+                errorPanel.addView(VaultUi.text(this, error, 10.5f, VaultTheme.textMuted, 430, lineSpacing = 1.3f).apply {
+                    setPadding(0, dp(3), 0, 0)
+                })
+                column.addView(errorPanel, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+            }
+            val choose = VaultUi.primaryButton(
+                this,
+                if (backupError == null) "Choose backup file" else "Choose another file",
+                R.drawable.ic_upload,
+                52
+            ) { launchBackupPicker() }
+            column.addView(choose, LinearLayout.LayoutParams(-1, dp(52)))
+            val cancel = VaultUi.secondaryButton(this, "Cancel", R.drawable.ic_close, 52) {
+                cancelBackupImport()
+            }
+            column.addView(cancel, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(10) })
+        }
+
+        panel.addView(column, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
+        root.removeAllViews()
+        root.addView(panel, LinearLayout.LayoutParams(-1, -1))
     }
 
     private fun showSecurityCenter(entries: MutableList<VaultStore.Entry>) {
@@ -2587,6 +2941,10 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_BACKUP_IMPORT) {
+            handleBackupImportResult(resultCode, data)
+            return
+        }
         if (requestCode != REQUEST_CARD_IMAGE) return
         val uri = data?.data
         if (resultCode != RESULT_OK || uri == null) {
