@@ -10,6 +10,22 @@ Aura Vault keeps sensitive personal data in a single encrypted file on the phone
 
 Most password managers are cloud services with an offline mode. This is the opposite: a local vault that never had a network path to begin with.
 
+## Try it
+
+Download the latest build from **[Releases](https://github.com/surtej21/CardVault/releases/latest)** — `aura-vault-0.2.3.apk`, 13.7 MB, arm64-v8a.
+
+1. Open the link on an Android 11 (API 30) or newer phone and download the APK.
+2. If prompted, allow your browser or file manager to install unknown apps.
+3. Open **Aura Vault**, create a master password (12+ characters), and save the recovery key shown once.
+
+The APK is signed and installs directly; there is no Play Store listing. SHA-256:
+
+```text
+468FFB829BD6A9DCC9F5CAD7F5829B6896ECC3E0B85F70706DC21ED4D70A61B8
+```
+
+This is an early prototype — use dummy data, not real payment credentials.
+
 ## Features
 
 - **Cards** — premium card visuals, on-device OCR scanning, masked numbers, controlled CVV reveal
@@ -51,7 +67,7 @@ Requirements: Android Studio with Android SDK 36, JDK 17+, and an Android 11 (AP
 .\gradlew.bat testDebugUnitTest
 ```
 
-The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Prebuilt release APKs are attached to [Releases](https://github.com/surtej21/CardVault/releases).
 
 Open the project folder in Android Studio and allow Gradle sync. To run it, enable Developer options and USB debugging on the device, connect it, then press Run.
 
