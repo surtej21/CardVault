@@ -1,24 +1,50 @@
-﻿# Aura Vault (early prototype)
+﻿# Aura Vault
 
-A personal, offline Android vault prototype with the Aura dark-glass interface.
+**A private, offline vault for your cards, logins, and passwords.**
 
-## Current state
+Native Android · Kotlin · No network permission · AES-256-GCM on device
 
-The app has master-password setup and unlock, a one-time recovery key, encrypted card, bank, password and custom entries, on-device card OCR, password generation, optional fingerprint unlock, selected-field sharing with confirmation, and sensitive clipboard handling. The native UI follows the Aura design prototype with a dashboard overview, searchable collections, premium card visuals, a security center and settings. It has not been independently security-reviewed or exercised on a physical device. Keep using dummy information until those checks are complete.
+![Aura Vault card view](docs/screenshots/card.jpg)
 
-## Project
+Aura Vault keeps sensitive personal data in a single encrypted file on the phone. There is no account, no sync, and no `INTERNET` permission in the manifest — the app has no network path, so your data cannot leave the device.
 
-- Kotlin with Android Gradle Plugin 9.4.0
-- Minimum Android 11 (API 30)
-- No network permission or backend configured
-- Android backup disabled in the manifest
-- Vault payload encrypted with AES-GCM; the random data key is wrapped by a PBKDF2-HMAC-SHA256 master-password key and a random recovery key
-- Optional fingerprint unlock wraps the data key with an Android Keystore key requiring strong biometric authentication
-- Screenshots are blocked; clipboard values are marked sensitive and cleared after 30 seconds if the clipboard still contains the copied value
+Most password managers are cloud services with an offline mode. This is the opposite: a local vault that never had a network path to begin with.
 
-Open this folder in Android Studio and allow Gradle sync. Android Studio may offer to install the required Android SDK. To run it, enable Developer options and USB debugging on an Android 11+ device, connect it by USB, then press Run; an emulator also works.
+## Features
 
-To build from a terminal:
+- **Cards** — premium card visuals, on-device OCR scanning, masked numbers, controlled CVV reveal
+- **Everything else** — bank accounts, logins and passwords, and custom items in one searchable vault
+- **Encrypted at rest** — the vault payload is sealed with AES-256-GCM
+- **Two ways back in** — master password (12+ characters) plus a one-time recovery key
+- **Biometric unlock** — optional, backed by an Android Keystore key that requires strong authentication
+- **Encrypted backup** — export and import the vault as a sealed archive
+- **Security centre** — a live score across weak passwords, reused passwords, expiring cards, and biometric state
+- **Screen capture blocked** — `FLAG_SECURE` on sensitive windows
+- **Sensitive clipboard** — copied values are tagged, and cleared after 30 seconds
+- **Backup disabled** — `android:allowBackup="false"`, so ADB cannot extract app data
+
+## Screenshots
+
+| Unlock | Vault | Security centre |
+|:---:|:---:|:---:|
+| ![Unlock](docs/screenshots/unlock.jpg) | ![Vault](docs/screenshots/vault.jpg) | ![Security centre](docs/screenshots/security.jpg) |
+
+## Demo
+
+A 21-second product film lives at [`docs/demo.mp4`](docs/demo.mp4). It is a motion recreation of the app's iron-and-brass vault room, not a screen recording.
+
+## Security model
+
+- The vault payload is encrypted with AES-256-GCM.
+- A random data key is wrapped by a PBKDF2-HMAC-SHA256 master-password key and by a random recovery key.
+- Optional fingerprint unlock wraps the data key with an Android Keystore key that requires strong biometric authentication.
+- No `android.permission.INTERNET` is declared. There is no backend, analytics SDK, or remote configuration.
+- The manifest sets `allowBackup="false"`; sensitive activities set `FLAG_SECURE`.
+- Clipboard entries are marked `EXTRA_IS_SENSITIVE` and wiped after 30 seconds if unchanged.
+
+## Build
+
+Requirements: Android Studio with Android SDK 36, JDK 17+, and an Android 11 (API 30) or newer device or emulator.
 
 ```powershell
 .\gradlew.bat assembleDebug
@@ -27,8 +53,28 @@ To build from a terminal:
 
 The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Security notes
+Open the project folder in Android Studio and allow Gradle sync. To run it, enable Developer options and USB debugging on the device, connect it, then press Run.
 
-The master password must be at least 12 characters. The recovery key is shown during setup and replacement; keep it outside the phone and private. Losing both the password and recovery key means losing access to the vault. Changing or removing enrolled fingerprints can disable fingerprint unlock; the master password and recovery key remain the recovery path.
+## Project structure
 
-The app still needs a focused security review and device-level checks before storing real payment credentials. Sharing sends selected information to another app; CVV is excluded by default and requires confirmation when copied or shared.
+```text
+app/src/main/java/com/example/cardvault/
+  MainActivity.kt      screens, navigation, flows
+  VaultStore.kt        encryption, persistence, backup
+  SecurityAudit.kt     security scoring
+  VaultComponents.kt   dials, rows, vault door
+  CardVisuals.kt       card rendering and OCR capture
+  VaultTheme.kt        tokens, type, shapes, motion
+  SessionKeeper.kt     auto-lock and session lifecycle
+  VaultRuntime.kt      runtime wiring
+```
+
+## Status
+
+This is an early prototype. It has **not** been independently security-reviewed and has not been exercised on a wide range of physical devices. Keep using dummy information until those checks are complete.
+
+Losing both the master password and the recovery key means losing access to the vault. Changing or removing enrolled fingerprints can disable biometric unlock; the password and recovery key remain the recovery path.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

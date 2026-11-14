@@ -1,12 +1,39 @@
+# Gradle
 .gradle/
 .gradle-local/
-.android/
-
+.gradle-user-home/
+.gradle-*/
 build/
 */build/
 
+# IDE
 .idea/
 *.iml
+.kotlin/
 
+# Android SDK and local config
+.android/
+.android-local/
 local.properties
+
+# Logs and tool settings
 *.log
+analytics.settings
+
+# Build outputs
+*.apk
+*.aab
+app/release/
+
+# Agent and tooling config (local only)
+.opencode/
+.agents/
+AGENTS.md
+
+# Video and brand working files (local only)
+brag-output/
+brand/
+
+# OS noise
+.DS_Store
+Thumbs.db
